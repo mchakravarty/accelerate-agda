@@ -44,11 +44,7 @@ Generative approaches to programming parallel hardware promise to combine high-l
 
 Given a host languages with an expressive type system, it is attractive to leverage that type system to express static properties of the embedded language. For example, Accelerate, an embedded array language for Haskell, uses Haskell's recent support for type-level programming like GADTs and type families in that manner~\cite{ChakravartyKellerLeeMcdonellGrover2011}. This is especially important for approaches relying on runtime code generation as we want to mimise the number of potential faults at application runtime, which coincides with the compile time of the embedded language. Moreover, static guaranties hold the potential to improve the predictability of parallel performance.
 
-Dependent types are an emerging approach to certified programming,
-where invariants are established and proved at compile time.
-
-Thus, it seems fruitful to explore the potential of dependent types in
-the context of data-parallel prorgamming.
+Dependent types are an emerging approach to certified programming, where invariants are established in the form of types and proved at compile time. Many of Haskell's type-level extensions used in Accelerate approximate various aspects of dependently-typed programming. Hence, it it is natural to ask whether fully-fledged dependent types, such as those provided by Agda, improve the specification of an embedded language like Accelerate, whether they increase the scope of static guarantees, and whether they may be leveraged to predict performance more accurately.
 
 This paper is a first investigation into this topic. It reports of a
 partial port of Accelerate to a new, dependently-typed host language,
