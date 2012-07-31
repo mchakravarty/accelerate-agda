@@ -17,24 +17,21 @@
 %
 \title{Agda Meets Accelerate}
 \subtitle{Extended Abstract}
-\author{Manuel M T Chakravarty\inst{1} \and Peter Thiemann\inst{2}}
+\author{Peter Thiemann\inst{1} \and Manuel M. T. Chakravarty\inst{2}}
 \institute{
+  University of Freiburg, Germany,\\
+  \email{thiemann@informatik.uni-freiburg.de}
+\and
 University of New South Wales, Sydney, Australia,\\
 \email{chak@cse.unsw.edu.au}
-\and
-  University of Freiburg, Germany,\\
-\email{thiemann@informatik.uni-freiburg.de}}
+}
 
 \maketitle              % typeset the title of the contribution
 
-\begin{abstract}
-  Are dependent types good for programming in a data parallel
-  language?
-  We describe the design and implementation of an Agda frontend for
-  Accelerate, an embedded DSL for data parallel programming on a
-  GPU. We discuss the potential of dependent types in this domain,
-  describe some limitations that we ran into, and share some insights
-  from our preliminary implementation.
+\begin{abstract}  
+  Embedded languages in Haskell benefit from a range of type extensions, such as type families, that are subsumed by dependent types. However, even with those type extensions, embedded languages for data parallel programming lack desirable static guarantees, such as static bounds checks in indexing and collective permutation operations.
+  
+  This raises the question whether embedded languages for data parallel programming would benefit from fully-fledged dependent types, such as those available in Agda. We explored that question by designing and implementing an Agda frontend to Accelerate, an embedded language for data parallel programming aimed at GPUs. We discuss the potential of dependent types in this domain, describe some of the limitations that we encountered, and share some insights from our preliminary implementation.
 \end{abstract}
 \keywords{programming with dependent types, data parallelism}
 \thispagestyle{plain}
