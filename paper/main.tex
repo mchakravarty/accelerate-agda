@@ -321,50 +321,28 @@ formalization is not straightforward. Moreover, even given expressions
 with a fixed meaning, there is no general shape for associative
 functions, so that proofs can only be done for special cases. 
 
-\subsection{Embedding of Constants}
+\subsection{Embedding of Haskell Types}
 \label{sec:embedding-constants}
 
-Accelerate relies on Haskell's type class \texttt{Num} and built-in
-magic to embed constants. The magic is that Haskell scans each integer
-literal as a value of type \texttt{Integer}, which is a built-in type
-of unlimited integers. To this scanned value, Haskell applies the
-function \texttt{fromInteger} to convert to the expected
-type. Similarly, floating point constants are scanned as values of
-type \texttt{Rational} (\texttt{Integer} fractions) and then converted
-using \texttt{fromRational}. Accelerate provides suitable instances of
-the numeric type classes that define \texttt{fromInteger} and
-\texttt{fromRational} to produce suitable AST fragments.
-
-In Agda, the situation is more involved because it only supports
-natural number literals which abbreviate a unary encoding. Therefore,
-we embed a numeric literal using a string with an explicit
-type annotation that determines the parsing of the string. Here are
-some example embeddings:
-\begin{verbatim}
-"3.1415926" ::: Float
-"6.0221415E23" ::: Double
-\end{verbatim}
-It should be noted that \texttt{Float} and \texttt{Double} are not
-types, but rather values of type \texttt{Element} as all other Haskell
-types, which can be referred to in an Accelerate program:
+Accelerate supports a wide range of numeric types as base types for
+array computations. Almost all of these types have no suitable
+counterpart in Agda, which only supports natural numbers in unary
+encoding. For that reason, our embedding keeps these types 
+abstract in Agda. To specify functions that are polymorphic in such a
+Haskell type or depend on it in some way, we have reified these types
+in an Agda type \texttt{Element}.
 \begin{verbatim}
 data Element : Set where
-  Bool : Element
-  Int : Element
-  Float : Element
+  Bool   : Element
+  Int    : Element
+  Float  : Element
   Double : Element
+  Pair   : Element -> Element -> Element
   ...
 \end{verbatim}
-All magic of the embedding is hidden in the \texttt{:::} operation:
-\begin{verbatim}
-_:::_ : (s : String) -> (E : Element) 
-     -> {{nu : IsNumeric E}} -> {p : T (s parsesAs E)} -> Exp E
-s ::: E = Ex (constantFromString (EltDict E) (ReadDict E) s)
-\end{verbatim}
-The argument \texttt{nu} is an instance argument that is automatically
-filled-in with a suitably typed value in scope. Here, the predicate
-\texttt{IsNumeric} plays the role of a type class that characterizes
-the numeric types.
+Corresponding to Haskell type classes that are used in Accelerate, our
+embedding supplies predicates that characterize subsets. For example,
+the set of numeric type is defined by a predicate \texttt{IsNumeric}.
 \begin{alltt}
 IsNumeric : Element -> Set
 IsNumeric Int = \(\top\)
@@ -372,11 +350,51 @@ IsNumeric Float = \(\top\)
 IsNumeric Double = \(\top\)
 IsNumeric _ = \(\bot\)
 \end{alltt}
+
+\subsection{Embedding of Constants}
+\label{sec:embedding-constants}
+
+
+Accelerate relies on Haskell's built-in support for the type classes
+\texttt{Num} and \texttt{Fractional} to embed constants. The Haskell compiler reads each integer
+literal as a value of type \texttt{Integer}, which is a built-in type
+of arbitrary precision integers. To this value, Haskell applies the
+function \texttt{fromInteger} that converts to the expected
+type. Similarly, floating point constants are read as values of
+type \texttt{Rational} (\texttt{Integer} fractions) and then converted
+using \texttt{fromRational}. Accelerate provides instances of
+these type classes that define \texttt{fromInteger} and
+\texttt{fromRational} to produce suitable AST fragments.
+
+Because of Agda's limited support for numeric data types,
+we embed more ambitious numeric literals for floating point numbers
+using a string with an explicit type annotation that determines the
+parsing of the string. Here are some example embeddings:
+\begin{verbatim}
+"3.1415926" ::: Float
+"6.0221415E23" ::: Double
+\end{verbatim}
+Recall that \texttt{Float} and \texttt{Double} are not
+types, but rather values of type \texttt{Element}.
+All magic of the embedding is hidden in the \texttt{:::} operation:
+\begin{verbatim}
+_:::_ : (s : String) -> (E : Element) 
+     -> {{nu : IsNumeric E}} -> {p : T (s parsesAs E)} -> Exp E
+s ::: E = Ex (constantFromString (EltDict E) (ReadDict E) s)
+\end{verbatim}
+The arguments \texttt{s} and \texttt{E} are explicit, but the
+remaining ones are to be inferred by Agda.
+The argument \texttt{nu} is an instance argument that is automatically
+filled-in with a suitably typed value in scope
+\cite{DevriesePiessens2011}. Here, the predicate 
+\texttt{IsNumeric} plays the role of a type class that characterizes
+the numeric types.
+
 The function \texttt{parsesAs} dispatches on its ``type'' argument and
 checks whether the string is a constant of the expected type. The
 function \texttt{constantFromString} is imported from Accelerate.
-It is an overloaded function that requires two type dictionaries, thus
-they are computed from \texttt{E} using the function \texttt{EltDict}
+It is an overloaded function that requires two type dictionaries,
+which are computed from \texttt{E} using the functions \texttt{EltDict}
 and \texttt{ReadDict}. 
 
 \section{Limitations}
@@ -385,17 +403,96 @@ and \texttt{ReadDict}.
 In a number of places, Accelerate's generativity limits the
 applicability of dependent typing. We already mentioned that the
 formalization of associativity or of the concept monoid gets
-unmanageable because it has to be asserted for abstract syntax.
+unmanageable because such properties have to be asserted for abstract syntax.
 
-For a similar reason, an implementation of the \texttt{filter}
-operation creates problems. The problem is that the size of the result
-cannot be determined statically. 
+For a similar problem, consider an implementation of the \texttt{filter}
+operation that takes a predicate and a source array and returns an
+array that only contains the elements of the source array fulfilling
+the predicate.  First of all, filtering only makes sense for
+one-dimensional arrays, that is, for vectors. To see the second catch,
+let's try to write down a dependent type signature for \texttt{filter}.
+\begin{verbatim}
+filter : {n m : Nat}{E : Element}
+       -> Vector n E -> (Exp E -> Exp Bool) -> Vector m E
+\end{verbatim}
+The problem is that the size of the result
+cannot be determined statically. In fact, the only thing we know about
+\texttt{m} is that it must be less than or equal to
+\texttt{n}. However, we cannot prove this from the code because the
+Accelerate implementation computes the length of the result in a quite
+subtle way. Moreover, as Accelerate deals with the construction of
+abstract syntax most of the time, the value of \texttt{m} is simply
+not available at run time of \texttt{filter}. 
 
-Existential types do not help with this problem.
+One might contemplate that an existential type like
+\begin{verbatim}
+exists (\ m : Nat -> m <= n -> Vector m E)
+\end{verbatim}
+could be employed. However, it is not possible to build such an
+existential package because the evidence \texttt{m} is not available
+when the package is constructed.
 
-However, an alternative encoding dependently-typed of arrays can be
-used which is compatible with filtering of elements. Actually, there
-are several ways to implement such an encoding with different drawbacks.
+However, an alternative encoding of arrays can be
+used which is compatible with filtering of elements. The idea of this
+encoding is to keep all elements but mark those which are no longer
+present because they have been filtered out.
+There are several ways of implementing this idea. The simplest
+approach is to wrap each element in a maybe type.
+pair up each element with a boolean flag that indicates
+its presence.\footnote{A \texttt{Maybe} type would be a better option,
+  but it has to be coded without using pattern matching.}
+\begin{verbatim}
+FVector : Nat -> Element -> Set
+FVector n E = Vector n (Pair Bool E)
+\end{verbatim}
+
+Now filtering becomes quite simple.
+\begin{verbatim}
+filterF : {n : Nat}{E : Element}
+        -> (Exp E -> Exp Bool) -> FVector n E -> FVector n E
+filterF {n}{E} pred vec =
+  map g vec
+  where
+  g : Exp (Pair Bool E) -> Exp (Pair Bool E)
+  g bx = pair ((fst bx) && p (snd bx)) x
+\end{verbatim}
+However, mapping becomes more complicated because it either has to
+materialize a dummy result for each absent element in the argument
+vector or apply the function to absent elements, too.\footnote{This
+  complication could be avoided with the \texttt{Maybe} type.}
+\begin{verbatim}
+mapF : {n : Nat}{E F : Element}
+     -> Exp F -> (Exp E -> Exp F) -> FVector n E -> FVector n F
+mapF {n}{E}{F} defaultF f vec =
+  map g vec
+  where
+  g : Exp (Pair Bool E) -> Exp (Pair Bool F)
+  g bx = if (fst bx) then (pair (fst bx) (f (snd bx)))
+                     else (pair (fst bx) defaultF)
+\end{verbatim}
+On the positive side, some operations can get rid of the absent
+elements. In particular, a fold operation which reduces a filtered
+vector with a monoid returns a single value. In Accelerate, such a value has type
+\texttt{Scalar}, which is a synonym for an array of dimension $0$.
+\begin{verbatim}
+foldF : {n : Nat}{E : Element}
+      -> (Exp E -> Exp E -> Exp E) -> Exp E
+      -> FVector n E -> Scalar E
+foldF f e vec =
+  fold f e (map (\ bx -> if (fst bx) then (snd bx) else e) vec)
+\end{verbatim}
+Other operations like \texttt{fold1} and the scan operations present
+in Accelerate can also be lifted to this representation, but they
+retain a notion of absent elements and do not allow to revert to a
+non-filtered representation. 
+
+In the end, such a representation may not be a loss on a GPU. As long
+as all computations take the same path, all processing elements work
+in unison. As soon as there are different paths in the same
+computation step, then some elements will be idle for part of the
+computation step. So it would be most advantageous to organize work as
+uniformly as possible. 
+
 
 \section{Implementation}
 \label{sec:implementation}
