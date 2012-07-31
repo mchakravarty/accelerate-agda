@@ -1,4 +1,4 @@
-accelerate-agda
-===============
+Agda Meets Accelerate
+=====================
 
-Accelerate in Agda
+This is an experimental Agda API to Accelerate.
