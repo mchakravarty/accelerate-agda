@@ -40,19 +40,9 @@ University of New South Wales, Sydney, Australia,\\
 \section{Introduction}
 \label{sec:introduction}
 
-The future belongs to multi-core computers that require new,
-declarative approaches to parallel programming. 
+Generative approaches to programming parallel hardware promise to combine high-level programming models with high-performance. They are especially attractive for targeting restricted architectures, such as GPUs (graphics processor units), that cannot efficiently execute code aimed at conventional multicore CPUs. Instead, GPUs require a high degree of data parallelism, restricted control flow, and carefully tailored data access patterns to be efficient. Previous work ---for example, Accelerator~\cite{??}, Copperhead~\cite{??}, and Accelerate~\cite{ChakravartyKellerLeeMcdonellGrover2011}--- demonstrates that embedded array languages with a custom code generator can meet those GPU constraints by carefully limiting the embedded language constructs.
 
-Data-parallel programming is one promising candidate for programming
-massively parallel machine, in particular the variant that targets
-GPUs.
-
-Accelerate \cite{ChakravartyKellerLeeMcdonellGrover2011} is a domain
-specific language embedded in Haskell \cite{PeytonJones2003}. Its
-target domain is data parallel programming on GPUs.
-
-Effective Parallelism requires many invariants for programs to
-run robustly and with predictable performance.
+Given a host languages with an expressive type system, it is attractive to leverage that type system to express static properties of the embedded language. For example, Accelerate, an embedded array language for Haskell, uses Haskell's recent support for type-level programming like GADTs and type families in that manner~\cite{ChakravartyKellerLeeMcdonellGrover2011}. This is especially important for approaches relying on runtime code generation as we want to mimise the number of potential faults at application runtime, which coincides with the compile time of the embedded language. Moreover, static guaranties hold the potential to improve the predictability of parallel performance.
 
 Dependent types are an emerging approach to certified programming,
 where invariants are established and proved at compile time.
