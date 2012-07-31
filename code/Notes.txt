@@ -1,0 +1,32 @@
+Suppose
+f : A -> A -> A 
+g : A -> A
+e : A
+and let
+h = \ x y -> g (f x y)
+
+** If f commutative, is h commutative?
+yes, obviously.
+
+** If f associative, is h associative?
+
+f ass: f x (f y z) == f (f x y) z
+
+(*) g (f x (g (f y z))) =?= g (f (g (f (x y))) z)
+
+Conditions on g:
+f1 x y = x        ==>     g idempotent
+f2 x y = y        ==>     g idempotent
+
+f x (g (f y z)) == f (g (f (x y))) z        implies (*)
+
+
+g (f x y) = f (g x) (g y) and g idempotent implies h associative
+
+** if e is unit for f, what about h?
+
+e is unit for f: f e x = f x e = x
+h e x = h x e = g (f e x) = g (f x e) = g x
+now: g x = g (f e x) = f (g e) (g x) 
+so    g x = g (g x) = g (f (g e) (g x)) = h (g e) (g x)
+if g is surjective, then g e is unit for h.

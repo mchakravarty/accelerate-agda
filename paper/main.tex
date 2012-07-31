@@ -1,0 +1,405 @@
+% 16pages; IFL 2012
+%
+\documentclass{llncs}
+%
+\usepackage{amssymb}
+\usepackage{cite}
+% \usepackage[T1]{fontenc}
+% \usepackage[utf8]{inputenc}
+
+%\usepackage{amsmath}
+%\usepackage{amsthm}
+%\usepackage{proof}
+\usepackage{alltt}
+
+
+\begin{document}
+%
+\title{Agda Meets Accelerate}
+\subtitle{Extended Abstract}
+\author{Manuel M T Chakravarty\inst{1} \and Peter Thiemann\inst{2}}
+\institute{
+University of New South Wales, Sydney, Australia,\\
+\email{chak@cse.unsw.edu.au}
+\and
+  University of Freiburg, Germany,\\
+\email{thiemann@informatik.uni-freiburg.de}}
+
+\maketitle              % typeset the title of the contribution
+
+\begin{abstract}
+  Are dependent types good for programming in a data parallel
+  language?
+  We describe the design and implementation of an Agda frontend for
+  Accelerate, an embedded DSL for data parallel programming on a
+  GPU. We discuss the potential of dependent types in this domain,
+  describe some limitations that we ran into, and share some insights
+  from our preliminary implementation.
+\end{abstract}
+\keywords{programming with dependent types, data parallelism}
+\thispagestyle{plain}
+\pagestyle{plain}
+%
+\section{Introduction}
+\label{sec:introduction}
+
+The future belongs to multi-core computers that require new,
+declarative approaches to parallel programming. 
+
+Data-parallel programming is one promising candidate for programming
+massively parallel machine, in particular the variant that targets
+GPUs.
+
+Accelerate \cite{ChakravartyKellerLeeMcdonellGrover2011} is a domain
+specific language embedded in Haskell \cite{PeytonJones2003}. Its
+target domain is data parallel programming on GPUs.
+
+Effective Parallelism requires many invariants for programs to
+run robustly and with predictable performance.
+
+Dependent types are an emerging approach to certified programming,
+where invariants are established and proved at compile time.
+
+Thus, it seems fruitful to explore the potential of dependent types in
+the context of data-parallel prorgamming.
+
+This paper is a first investigation into this topic. It reports of a
+partial port of Accelerate to a new, dependently-typed host language,
+Agda \cite{Norell2008,BoveDybjerNorell2009}. Agda is particularly
+suited to this port because of its foreign function interface to
+Haskell, which enables it to directly invoke functionality of
+Accelerate. 
+
+Our investigation has the following structure. After recalling some
+background on Agda and Accelerate in Section~\ref{sec:background} and
+describing related work in Section~\ref{sec:related-work}, 
+Section~\ref{sec:dependent-types} discusses potential uses of
+dependent types in an array-oriented data parallel language like
+Accelerate. Section~\ref{sec:limitations} considers conceptual
+problems and limitations that we ran into when constructing the Agda
+frontend for Accelerate. Section~\ref{sec:implementation} explains
+some technical details of the implementation and discusses some
+example code. 
+
+\section{Background}
+\label{sec:background}
+
+\subsection{Agda}
+\label{sec:agda}
+
+Agda \cite{Norell2008,BoveDybjerNorell2009} is a dependently typed
+functional programming language. Its basis is a dependently typed
+lambda calculus extended with inductive data type families, dependent
+records, and parameterized modules. At the same time, Agda is also a
+proof assistant for interactively constructing proofs in an
+intuitionistic type theory based on the work of Per Martin-L\"of
+\cite{MartinLoef1984}. 
+
+A familiar example for an indexed data type is the type
+\verb+Vec A n+ for vectors of fixed length \verb+n+ and elements of
+type \verb+A+ program program with an access operation that restricts the index to the
+actual length of the vector at compile time.\footnote{An
+  identifier can be an almost arbitrary 
+  string of Unicode characters except spaces, parentheses, and curly
+  braces. Agda also supports mixfix syntax with the position of
+  arguments indicated by underscores in the defining occurrence of an
+  identifier.} 
+\begin{verbatim}
+data Vec (A : Set) : Nat -> Set where
+  []   : Vec A zero
+  _::_ : {n : Nat} -> A -> Vec A n -> Vec A (suc n)
+\end{verbatim}
+The above defines an indexed data type \verb+Vec A n+ with two
+constructors, \verb+[]+ for the vector of length zero and 
+\verb+_::_+ for the infix cons operator that increases the length by one.
+
+One way of writing a safe access operation first defines an indexed
+type that encodes the required less-than relation on natural numbers.
+\begin{verbatim}
+data _<_ : Nat -> Nat -> Set where
+  z<s : {n : Nat} -> zero < suc n
+  s<s : {m n : Nat} -> m < n -> suc m < suc n
+\end{verbatim}
+Lines two and three of the definition encode named inference rules for
+the cases that $0 < n+1$ (for all $n$) and that $m+1 < n+1$ if $m < n$
+(for all $m,n$).
+
+The access operation takes a vector of length \verb+n+, an index
+\verb+m+, and a proof of \verb+m < n+ (a derivation tree) to produce
+an element of the vector.  
+\begin{verbatim}
+get : {A : Set} {n : Nat} -> Vec A n -> (m : Nat) -> m < n -> A
+get []        _       ()      -- impossible case
+get (x :: xs) zero    p       = x
+get (x :: xs) (suc m) (s<s p) = get xs m p
+\end{verbatim}
+This code cannot fail at run time because a caller has to
+construct the proof tree for \verb+m < n+ before invoking \verb+get+.
+
+\subsection{Accelerate}
+\label{sec:accelerate}
+
+Accelerate \cite{ChakravartyKellerLeeMcdonellGrover2011} is an
+embedded DSL for running data parallel code on a GPU. 
+
+Accelerate has a rich typed interface that already encodes many
+invariants using advanced typing concepts in Haskell, in particular
+GADTs\cite{PeytonJonesVytiniotisWeirichWashburn2006}, associated types
+\cite{ChakravartyKellerJones2005}, and type functions
+\cite{SchrijversPeytonJonesChakravartySulzmann2008}. 
+
+Moreover, Accelerate is a \emph{generative library}, in the sense that
+most of its API operations just construct abstract syntax trees (AST). In the end,
+the \verb+run+ operation accepts such an AST (of type \verb+Acc a+),
+compiles it to GPU kernels, 
+uploads it to the device, executes it, and retrieves the results. 
+\begin{verbatim}
+CUDA.run :: Arrays a => Acc a -> a
+\end{verbatim}
+The type class constraint \verb+Arrays a+ restricts the result type to
+a type that can be handled by accelerate, usually an array type.
+
+A simple Accelerate program would look like this:
+\begin{verbatim}
+dotp :: Vector Float -> Vector Float -> Acc (Scalar Float)
+dotp xs ys = let xs' = use xs
+                 ys' = use ys
+             in  fold (+) 0 (zipWith (*) xs' ys')
+\end{verbatim}
+Here, \verb+Vector+ and \verb+Scalar+ are one- and zero-dimensional
+array types known to Accelerate. Initially, the values of the
+\verb+Vector+ type are simply Haskell arrays. The \verb+use+ operation
+transforms a Haskell array into an array reference on the GPU and
+makes the reference available for use in constructing the AST of the
+desired operation. The last line applies two API operations,
+\texttt{fold} and \texttt{zipWith} to construct an AST that returns a
+\texttt{Scalar Float}, i.e., a single float value. This line relies
+heavily on (type class) overloading: \texttt{0}, \texttt{(+)}, and
+\texttt{(*)} are overloaded to just construct abstract syntax. 
+
+\textbf{TODO}: explain type \texttt{Array sh a}, in particular the
+\texttt{sh} part.
+
+\section{Related Work}
+\label{sec:related-work}
+
+\section{Dependent Types for Accelerate}
+\label{sec:dependent-types}
+
+In this section, we investigate the potential uses of dependent typing
+in a language like Accelerate.
+
+\subsection{Exact Checking of Array Bounds}
+\label{sec:exact-checking-array}
+
+Accelerate's API features expressive type constraints that describe
+the shape of the array arguments and results. These constraints ensure
+that no shape mismatches occur (e.g., a one-dimensional array is
+considered two-dimensional). However, they do not ensure at compile
+time that the sizes of the dimensions match up.
+
+As an example, consider the function \texttt{reshape}. 
+It takes a target shape \texttt{sh} and an array of source shape
+\texttt{sh'} and changes the layout of that array to \texttt{sh}. 
+\begin{verbatim}
+reshape :: Exp sh -> Acc (Array sh' e) -> Acc (Array sh e)
+\end{verbatim}
+For this reshaping to work correctly, the underlying
+number of elements must remain the same. For example, while it makes sense
+to reshape a two-dimensional $3\times 4$-array  to a vector of size
+$12$ or to a three-dimensional $3\times2\times2$-array, whereas an attempt to
+reshape the same array to a $2\times5$-array should be rejected at
+compile time.
+
+In Agda, we define the shape type as follows.
+\begin{verbatim}
+data Shape : Set where
+  Z     : Shape
+  _:<_> : Shape -> Nat -> Shape
+\end{verbatim}
+The \texttt{size} function computes the number of elements stored in a
+shape.
+\begin{verbatim}
+size : Shape -> Nat
+size Z = 1
+size (sh :< n >) = size sh * n
+\end{verbatim}
+Now we can state an accurate type for \texttt{reshape} in Agda, which
+involves an extra argument with a proof that the source and
+target shapes have the same size.\footnote{For the moment, the type
+  \texttt{Element} could be read as \texttt{Set}. Actually,
+  \texttt{Element} classifies the types of values that can be stored
+  in Accelerate arrays. In Haskell, this restriction is imposed with a
+  type class.}
+\begin{verbatim}
+reshape : {sh : Shape} {E : Element}
+       -> (sh' : Shape) -> Array sh E -> (size sh = size sh')
+       -> Array sh' E
+\end{verbatim}
+There is a subtle difference to the original signature. In
+Accelerate, the first argument is an \emph{expression} that produces a
+value of type \texttt{sh} at run time, whereas the Agda
+\texttt{reshape} requires a \texttt{Shape} as its first argument.
+
+
+Furthermore, functions like \texttt{map} and \texttt{zipWith} obtain
+more precise types. The type of \texttt{map} tells us that the input
+shape is identical to the output shape:
+\begin{verbatim}
+map : {A B} {sh} -> (Exp A -> Exp B) -> Array sh A -> Array sh B
+\end{verbatim}
+Similarly, the type of \texttt{zipWith} restricts its input arrays to
+identical shapes:
+\begin{verbatim}
+zipWith : {A B C} {sh} -> (Exp A -> Exp B -> Exp C)
+        -> Array sh A -> Array sh B -> Array sh C
+\end{verbatim}
+The latter type is more restrictive than the Accelerate
+implementation of \texttt{zipWith}. Instead of checking the dimensions
+of the input arrays, it truncates them to the respective minima. A
+corresponding Agda type could be developed easily. It would involve
+specifying a suitable ternary relation between shapes.
+
+\subsection{Associativity of Operations}
+\label{sec:assoc-oper}
+
+Some parallel reduction operations require their base operation to be
+associative to return a predictable result. Here are two examples from
+Accelerate. 
+\begin{verbatim}
+fold  :: (Shape ix, Elt a) =>
+         (Exp a -> Exp a -> Exp a) -> Exp a ->
+         Acc (Array (ix :. Int) a) -> Acc (Array ix a)
+fold1 :: (Shape ix, Elt a) =>
+         (Exp a -> Exp a -> Exp a) ->
+         Acc (Array (ix :. Int) a) -> Acc (Array ix a)
+\end{verbatim}
+In both cases, the text of the documentation says that ``the first
+argument needs to be associative'' and the \texttt{fold1}
+documentation ``requires the reduced array to be non-empty''.
+The second requirement can be enforced by asking for a suitable proof
+object on each call of \texttt{fold1}:
+\begin{verbatim}
+fold1 : ... -> Array (sh :< n >) E -> (p : size sh * n > 0)
+            -> Array sh E
+\end{verbatim}
+The first requirement can be rephrased to saying that the first two
+parameters of \texttt{fold} together form a monoid, which requires an
+associative operation with a unit element. The concept of a monoid
+can be formalized in Agda, which has indeed been done in the standard
+library. Unfortunately, the formalization from the library cannot be
+used because Accelerate deals with ASTs, not with values. So, a
+formalization is required that states that the meaning of an
+AST-encoded function is associative and the meaning of another
+AST-encoded constant is its unit element. Given that Accelerate
+encodes AST construction using higher-order abstract syntax, such a
+formalization is not straightforward. Moreover, even given expressions
+with a fixed meaning, there is no general shape for associative
+functions, so that proofs can only be done for special cases. 
+
+\subsection{Embedding of Constants}
+\label{sec:embedding-constants}
+
+Accelerate relies on Haskell's type class \texttt{Num} and built-in
+magic to embed constants. The magic is that Haskell scans each integer
+literal as a value of type \texttt{Integer}, which is a built-in type
+of unlimited integers. To this scanned value, Haskell applies the
+function \texttt{fromInteger} to convert to the expected
+type. Similarly, floating point constants are scanned as values of
+type \texttt{Rational} (\texttt{Integer} fractions) and then converted
+using \texttt{fromRational}. Accelerate provides suitable instances of
+the numeric type classes that define \texttt{fromInteger} and
+\texttt{fromRational} to produce suitable AST fragments.
+
+In Agda, the situation is more involved because it only supports
+natural number literals which abbreviate a unary encoding. Therefore,
+we embed a numeric literal using a string with an explicit
+type annotation that determines the parsing of the string. Here are
+some example embeddings:
+\begin{verbatim}
+"3.1415926" ::: Float
+"6.0221415E23" ::: Double
+\end{verbatim}
+It should be noted that \texttt{Float} and \texttt{Double} are not
+types, but rather values of type \texttt{Element} as all other Haskell
+types, which can be referred to in an Accelerate program:
+\begin{verbatim}
+data Element : Set where
+  Bool : Element
+  Int : Element
+  Float : Element
+  Double : Element
+  ...
+\end{verbatim}
+All magic of the embedding is hidden in the \texttt{:::} operation:
+\begin{verbatim}
+_:::_ : (s : String) -> (E : Element) 
+     -> {{nu : IsNumeric E}} -> {p : T (s parsesAs E)} -> Exp E
+s ::: E = Ex (constantFromString (EltDict E) (ReadDict E) s)
+\end{verbatim}
+The argument \texttt{nu} is an instance argument that is automatically
+filled-in with a suitably typed value in scope. Here, the predicate
+\texttt{IsNumeric} plays the role of a type class that characterizes
+the numeric types.
+\begin{alltt}
+IsNumeric : Element -> Set
+IsNumeric Int = \(\top\)
+IsNumeric Float = \(\top\)
+IsNumeric Double = \(\top\)
+IsNumeric _ = \(\bot\)
+\end{alltt}
+The function \texttt{parsesAs} dispatches on its ``type'' argument and
+checks whether the string is a constant of the expected type. The
+function \texttt{constantFromString} is imported from Accelerate.
+It is an overloaded function that requires two type dictionaries, thus
+they are computed from \texttt{E} using the function \texttt{EltDict}
+and \texttt{ReadDict}. 
+
+\section{Limitations}
+\label{sec:limitations}
+
+In a number of places, Accelerate's generativity limits the
+applicability of dependent typing. We already mentioned that the
+formalization of associativity or of the concept monoid gets
+unmanageable because it has to be asserted for abstract syntax.
+
+For a similar reason, an implementation of the \texttt{filter}
+operation creates problems. The problem is that the size of the result
+cannot be determined statically. 
+
+Existential types do not help with this problem.
+
+However, an alternative encoding dependently-typed of arrays can be
+used which is compatible with filtering of elements. Actually, there
+are several ways to implement such an encoding with different drawbacks.
+
+\section{Implementation}
+\label{sec:implementation}
+
+Agda is compiled to Haskell.
+
+The compiler supports a Haskell foreign function interface. 
+
+The sophisticated type structure of the Accelerate language is in the
+way.
+
+The foreign function interface is not sufficiently expressive so that
+Agda types need to be encoded and corresponding structures need to be
+build from this encoding in the Haskell code. 
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+
+%
+% ---- Bibliography ----
+%
+\bibliography{abbrevs,papers,books,collections,misc,theses}
+\bibliographystyle{abbrv}
+
+\end{document}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 
