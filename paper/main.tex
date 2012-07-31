@@ -122,46 +122,64 @@ construct the proof tree for \verb+m < n+ before invoking \verb+get+.
 \subsection{Accelerate}
 \label{sec:accelerate}
 
-Accelerate \cite{ChakravartyKellerLeeMcdonellGrover2011} is an
-embedded DSL for running data parallel code on a GPU. 
-
-Accelerate has a rich typed interface that already encodes many
-invariants using advanced typing concepts in Haskell, in particular
-GADTs\cite{PeytonJonesVytiniotisWeirichWashburn2006}, associated types
-\cite{ChakravartyKellerJones2005}, and type functions
-\cite{SchrijversPeytonJonesChakravartySulzmann2008}. 
-
-Moreover, Accelerate is a \emph{generative library}, in the sense that
-most of its API operations just construct abstract syntax trees (AST). In the end,
-the \verb+run+ operation accepts such an AST (of type \verb+Acc a+),
-compiles it to GPU kernels, 
-uploads it to the device, executes it, and retrieves the results. 
+Accelerate~\cite{ChakravartyKellerLeeMcdonellGrover2011} is a data-parallel array language embedded into Haskell, which targets GPUs. It is a \emph{generative library}, as its data-parallel array operations are not executed directly, but instead construct abstract syntax trees (AST) representing an entire data-parallel subcomputation. These \emph{computation representations} are executed using a \verb+run+ operation that accepts such an AST (of type \verb+Acc a+), compiles it to GPU kernels, uploads it to the device, executes it, and retrieves the results.
+%
 \begin{verbatim}
 CUDA.run :: Arrays a => Acc a -> a
 \end{verbatim}
-The type class constraint \verb+Arrays a+ restricts the result type to
-a type that can be handled by accelerate, usually an array type.
+%
+The type class constraint \verb+Arrays a+ restricts the result type to a single array or a tuple of arrays.
 
-A simple Accelerate program would look like this:
+As computation representations of type \verb+Acc a+ are compiled at application runtime, all \verb+Acc+ compilation errors are effectivly \emph{runtime errors} of the application. Hence, Accelerate uses a range of Haskell type system extensions to statically type Accelerate expressions, such that these runtime errors are avoided where possible. In particular, Accelerate uses GADTs\cite{PeytonJonesVytiniotisWeirichWashburn2006}, associated types
+\cite{ChakravartyKellerJones2005}, and type families
+\cite{SchrijversPeytonJonesChakravartySulzmann2008}. 
+
+As a simple example of an Accelerate program, consider a function implementing a dot product:
+%
 \begin{verbatim}
 dotp :: Vector Float -> Vector Float -> Acc (Scalar Float)
 dotp xs ys = let xs' = use xs
                  ys' = use ys
              in  fold (+) 0 (zipWith (*) xs' ys')
 \end{verbatim}
-Here, \verb+Vector+ and \verb+Scalar+ are one- and zero-dimensional
-array types known to Accelerate. Initially, the values of the
-\verb+Vector+ type are simply Haskell arrays. The \verb+use+ operation
-transforms a Haskell array into an array reference on the GPU and
-makes the reference available for use in constructing the AST of the
-desired operation. The last line applies two API operations,
-\texttt{fold} and \texttt{zipWith} to construct an AST that returns a
-\texttt{Scalar Float}, i.e., a single float value. This line relies
+%
+The types \verb+Vector+ and \verb+Scalar+ represent one- and zero-dimensional
+arrays. Plain arrays, such as \verb+Vector Float+ are conventional Haskell arrays, using an unboxed representation to improve performance. However, when they are wrapped into the constructor \verb+Acc+, such as in \verb+Acc (Scalar Float)+, they represent arrays of the embedded language and are allocated in GPU memory, which in current high-performance GPUs is physically separate from CPU memory.
+
+The \verb+use+ operation makes a Haskell array available in the embedded language by wrapping it into the \verb+Acc+ constructor and copying it to GPU memory.\footnote{Accelerate employs a caching strategy to avoid the transfer of arrays, which are already available in GPU memory.} The operations \texttt{fold} and \texttt{zipWith} represent collective operations on Accelerate arrays, effectively producing a representation of an array computation yielding a value of
+\texttt{Scalar Float}; i.e., a single float value. This code relies
 heavily on (type class) overloading: \texttt{0}, \texttt{(+)}, and
 \texttt{(*)} are overloaded to just construct abstract syntax. 
 
-\textbf{TODO}: explain type \texttt{Array sh a}, in particular the
-\texttt{sh} part.
+The type \verb+Scalar+ and \verb+Vector+ are merely type synonyms instantiating a shape-parameterised array type to the special case of zero and one dimensional arrays:
+%
+\begin{verbatim}
+type Scalar e = Array DIM0 e
+type Vector e = Array DIM1 e
+\end{verbatim}
+%
+So, the general type for \verb+use+ is
+%
+\begin{verbatim}
+use :: Elt e => Array sh e -> Acc (Array sh e)
+\end{verbatim}
+%
+where the class \verb+Elt+ characterises all types that may be held in Accelerate arrays. These are currently primitive types and tuples.
+
+Common dimensions, such as \verb+DIM0+, \verb+DIM1+, and so on, are predefined, but to enable shape polymorphic computations, along the lines pioneered in the Haskell array library Repa~\cite{keller-etal:repa}, shapes are inductively defined using type-level snoc lists formed from
+%
+\begin{verbatim}
+data Z       = Z
+data sh :. i = sh :. i
+\end{verbatim}
+%
+Hence, we have got
+%
+\begin{verbatim}
+type DIM0 = Z
+type DIM1 = DIM0 :. Int
+<and so on>
+\end{verbatim}
 
 \section{Related Work}
 \label{sec:related-work}
