@@ -184,6 +184,29 @@ type DIM1 = DIM0 :. Int
 \section{Related Work}
 \label{sec:related-work}
 
+Dependent types for array programming: 
+\begin{itemize}
+\item "Dependent Types for Distributed Arrays".
+Wouter Swierstra and Thorsten Altenkirch. Postproceedings of TFP 2008.
+\item "More Dependent Types for Distributed Arrays".
+Wouter Swierstra. Accepted for publication in the Journal of Higher-order and Symbolic Computation.
+\end{itemize}
+This work focuses on describing distribution strategies using dependent types (which is orthogonal to our work). However, to characterise distributions, it also tracks bounds in types.
+
+DML:
+\begin{itemize}
+\item Xi, Hongwei (March 2007). "Dependent ML: An Approach to Practical Programming with Dependent Types". Journal of Functional Programming 17 (2). [There is a previous ICFP paper co-authored with his advisor Bob Harper.]
+\end{itemize}
+Extension of ML to track array bounds.
+
+Other embedded array languages:
+\begin{itemize}
+\item Accelerator: C++ library providing data-parallel GPU programming; subsequent work by Satnam Singh provides an F\# binding (but that was never published as for as I know---double check); the language provides only a small subset of the functionality of Accelerate
+\item Copperhead: embedded array language in Python; no static guarantees; performance varied widely in our experiments
+\item anything else?
+\end{itemize}
+
+
 \section{Dependent Types for Accelerate}
 \label{sec:dependent-types}
 
