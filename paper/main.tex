@@ -4,13 +4,30 @@
 %
 \usepackage{amssymb}
 \usepackage{cite}
+\usepackage{color}
 % \usepackage[T1]{fontenc}
-% \usepackage[utf8]{inputenc}
 
 %\usepackage{amsmath}
 %\usepackage{amsthm}
 %\usepackage{proof}
 \usepackage{alltt}
+
+% UNICODE in Agda sources: more trouble than it is worth right now!
+
+% \usepackage{bbm}
+% \usepackage[greek,english]{babel}
+% \usepackage{ucs}
+% \usepackage[utf8x]{inputenc}
+% %\usepackage{autofe}
+% \DeclareUnicodeCharacter{8704}{\ensuremath{\forall}}
+% % \DeclareUnicodeCharacter{8594}{\ensuremath{\mathbb{N}}}
+% \DeclareUnicodeCharacter{8594}{\ensuremath{\to}}
+
+
+\usepackage{fancyvrb}
+
+\DefineVerbatimEnvironment{code}{Verbatim}{} % Add fancy options here if you like.
+\DefineVerbatimEnvironment{hcode}{Verbatim}{formatcom=\color{blue},frame=leftline} % Add fancy options here if you like.
 
 
 \begin{document}
@@ -70,8 +87,8 @@ example code.
 \subsection{Agda}
 \label{sec:agda}
 
-Agda \cite{Norell2008,BoveDybjerNorell2009} is a dependently typed
-functional programming language. Its basis is a dependently typed
+Agda \cite{Norell2008,BoveDybjerNorell2009} is a dependently-typed
+functional programming language. Its basis is a dependently-typed
 lambda calculus extended with inductive data type families, dependent
 records, and parameterized modules. At the same time, Agda is also a
 proof assistant for interactively constructing proofs in an
@@ -122,11 +139,21 @@ construct the proof tree for \verb+m < n+ before invoking \verb+get+.
 \subsection{Accelerate}
 \label{sec:accelerate}
 
-Accelerate~\cite{ChakravartyKellerLeeMcdonellGrover2011} is a data-parallel array language embedded into Haskell, which targets GPUs. It is a \emph{generative library}, as its data-parallel array operations are not executed directly, but instead construct abstract syntax trees (AST) representing an entire data-parallel subcomputation. These \emph{computation representations} are executed using a \verb+run+ operation that accepts such an AST (of type \verb+Acc a+), compiles it to GPU kernels, uploads it to the device, executes it, and retrieves the results.
+Accelerate~\cite{ChakravartyKellerLeeMcdonellGrover2011} is a
+data-parallel array language embedded into Haskell, which targets
+GPUs. It is a \emph{generative library}, as its data-parallel array
+operations are not executed directly, but instead construct abstract
+syntax trees (AST) representing an entire data-parallel
+subcomputation. These \emph{computation representations} are executed
+using a \verb+run+ operation that accepts such an AST (of type
+\verb+Acc a+), compiles it to GPU kernels, uploads it to the device,
+executes it, and retrieves the results.\footnote{To distinguish
+  Haskell code from Agda code, we display the former in blue and with
+  a vertical bar on the left side.}
 %
-\begin{verbatim}
+\begin{hcode}
 CUDA.run :: Arrays a => Acc a -> a
-\end{verbatim}
+\end{hcode}
 %
 The type class constraint \verb+Arrays a+ restricts the result type to a single array or a tuple of arrays.
 
@@ -136,12 +163,12 @@ As computation representations of type \verb+Acc a+ are compiled at application 
 
 As a simple example of an Accelerate program, consider a function implementing a dot product:
 %
-\begin{verbatim}
+\begin{hcode}
 dotp :: Vector Float -> Vector Float -> Acc (Scalar Float)
 dotp xs ys = let xs' = use xs
                  ys' = use ys
              in  fold (+) 0 (zipWith (*) xs' ys')
-\end{verbatim}
+\end{hcode}
 %
 The types \verb+Vector+ and \verb+Scalar+ represent one- and zero-dimensional
 arrays. Plain arrays, such as \verb+Vector Float+ are conventional Haskell arrays, using an unboxed representation to improve performance. However, when they are wrapped into the constructor \verb+Acc+, such as in \verb+Acc (Scalar Float)+, they represent arrays of the embedded language and are allocated in GPU memory, which in current high-performance GPUs is physically separate from CPU memory.
@@ -153,33 +180,33 @@ heavily on (type class) overloading: \texttt{0}, \texttt{(+)}, and
 
 The type \verb+Scalar+ and \verb+Vector+ are merely type synonyms instantiating a shape-parameterised array type to the special case of zero and one dimensional arrays:
 %
-\begin{verbatim}
+\begin{hcode}
 type Scalar e = Array DIM0 e
 type Vector e = Array DIM1 e
-\end{verbatim}
+\end{hcode}
 %
 So, the general type for \verb+use+ is
 %
-\begin{verbatim}
+\begin{hcode}
 use :: Elt e => Array sh e -> Acc (Array sh e)
-\end{verbatim}
+\end{hcode}
 %
 where the class \verb+Elt+ characterises all types that may be held in Accelerate arrays. These are currently primitive types and tuples.
 
 Common dimensions, such as \verb+DIM0+, \verb+DIM1+, and so on, are predefined, but to enable shape polymorphic computations, along the lines pioneered in the Haskell array library Repa~\cite{keller-etal:repa}, shapes are inductively defined using type-level snoc lists formed from
 %
-\begin{verbatim}
+\begin{hcode}
 data Z       = Z
 data sh :. i = sh :. i
-\end{verbatim}
+\end{hcode}
 %
 Hence, we have got
 %
-\begin{verbatim}
+\begin{hcode}
 type DIM0 = Z
 type DIM1 = DIM0 :. Int
-<and so on>
-\end{verbatim}
+-- <and so on>
+\end{hcode}
 
 \section{Related Work}
 \label{sec:related-work}
@@ -211,23 +238,103 @@ Other embedded array languages:
 \label{sec:dependent-types}
 
 In this section, we investigate the potential uses of dependent typing
-in a language like Accelerate.
+in a language like Accelerate. First, we review some basics of the
+embedding. 
+
+\subsection{Embedding of Haskell Types}
+\label{sec:embedding-types}
+
+Accelerate supports a wide range of numeric types as base types for
+array computations. Almost all of these types have no suitable
+counterpart in Agda, which only supports natural numbers in unary
+encoding. For that reason, our embedding keeps the Haskell types
+abstract in Agda. To specify type signatures and in particular
+functions that are polymorphic in such a Haskell type or depend on it
+in some way, we have reified these types in an Agda type
+\texttt{Element}.
+\begin{verbatim}
+data Element : Set where
+  Bool   : Element
+  Int    : Element
+  Float  : Element
+  Double : Element
+  Pair   : Element -> Element -> Element
+  -- and so on
+\end{verbatim}
+Corresponding to Haskell type classes that are used in Accelerate, our
+embedding supplies predicates that characterize subsets. For example,
+the set of numeric types is defined by a predicate \texttt{IsNumeric}.
+\begin{alltt}
+IsNumeric : Element -> Set
+IsNumeric Int = \(\top\)
+IsNumeric Float = \(\top\)
+IsNumeric Double = \(\top\)
+IsNumeric _ = \(\bot\)
+\end{alltt}
+The embedding declares further subsets all in the same style.
+
+\subsection{Array Types}
+\label{sec:array-types}
+
+To see the Agda embedding in action, we translate the
+dot product example from Section~\ref{sec:accelerate} to Agda.
+\begin{code}
+dotp : {E : Element} {{p : IsNumeric E}} {n : Nat}
+     -> PreVector n E -> PreVector n E -> Scalar E
+dotp{E} xs ys = 
+  let xs' = use xs
+      ys' = use ys
+  in
+  fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
+\end{code}
+Unlike the Accelerate code, this function is polymorphic with respect
+to the array element type, provided it is numeric. It furthermore
+takes the length $n$ as a parameter thus ensuring that the two input
+vectors have the same size. The \texttt{PreVector} type of the
+arguments corresponds to the plain \texttt{Vector} type in Accelerate,
+whereas the result type \texttt{Scalar E} corresponds to \texttt{Acc
+  (Scalar E)}---a piece of abstract syntax. 
+
+The \texttt{use} function works as before, but its type
+includes more information:
+\begin{code}
+use : {sh : Shape}{E : Element} -> PreArray sh E -> Array sh E
+\end{code}
+Like \texttt{E}, the index \texttt{sh} is now an element of an ordinary type:
+\begin{verbatim}
+data Shape : Set where
+  Z     : Shape
+  _:<_> : Shape -> Nat -> Shape
+\end{verbatim}
+Asking for arrays of equal shape, as in the signature of \texttt{use},
+means that the arrays have to have the exact same layout.
+The functions \texttt{fold}, \texttt{zipWith}, and \texttt{:::} are
+discussed in the subsequent Subsections. The functions \verb|_+_| and
+\verb|_*_| both have the same type:
+\begin{code}
+_+_ : {E : Element} {{p : IsNumeric E}} -> Exp E -> Exp E -> Exp E
+\end{code}
+They are restricted to arguments of numeric type and construct
+abstract syntax for an addition or a multiplication by delegating to
+the corresponding Accelerate functions.
+
+
 
 \subsection{Exact Checking of Array Bounds}
 \label{sec:exact-checking-array}
 
 Accelerate's API features expressive type constraints that describe
 the shape of the array arguments and results. These constraints ensure
-that no shape mismatches occur (e.g., a one-dimensional array is
+that no shape mismatches occur (e.g., a one-dimensional array cannot be
 considered two-dimensional). However, they do not ensure at compile
 time that the sizes of the dimensions match up.
 
 As an example, consider the function \texttt{reshape}. 
 It takes a target shape \texttt{sh} and an array of source shape
 \texttt{sh'} and changes the layout of that array to \texttt{sh}. 
-\begin{verbatim}
+\begin{hcode}
 reshape :: Exp sh -> Acc (Array sh' e) -> Acc (Array sh e)
-\end{verbatim}
+\end{hcode}
 For this reshaping to work correctly, the underlying
 number of elements must remain the same. For example, while it makes sense
 to reshape a two-dimensional $3\times 4$-array  to a vector of size
@@ -235,14 +342,9 @@ $12$ or to a three-dimensional $3\times2\times2$-array, whereas an attempt to
 reshape the same array to a $2\times5$-array should be rejected at
 compile time.
 
-In Agda, we define the shape type as follows.
-\begin{verbatim}
-data Shape : Set where
-  Z     : Shape
-  _:<_> : Shape -> Nat -> Shape
-\end{verbatim}
-The \texttt{size} function computes the number of elements stored in a
-shape.
+As \texttt{Shape} is an ordinary data type, we can define a
+\texttt{size} function that computes the number of elements stored in
+an array of a certain shape.
 \begin{verbatim}
 size : Shape -> Nat
 size Z = 1
@@ -290,14 +392,14 @@ specifying a suitable ternary relation between shapes.
 Some parallel reduction operations require their base operation to be
 associative to return a predictable result. Here are two examples from
 Accelerate. 
-\begin{verbatim}
+\begin{hcode}
 fold  :: (Shape ix, Elt a) =>
          (Exp a -> Exp a -> Exp a) -> Exp a ->
          Acc (Array (ix :. Int) a) -> Acc (Array ix a)
 fold1 :: (Shape ix, Elt a) =>
          (Exp a -> Exp a -> Exp a) ->
          Acc (Array (ix :. Int) a) -> Acc (Array ix a)
-\end{verbatim}
+\end{hcode}
 In both cases, the text of the documentation says that ``the first
 argument needs to be associative'' and the \texttt{fold1}
 documentation ``requires the reduced array to be non-empty''.
@@ -321,35 +423,17 @@ formalization is not straightforward. Moreover, even given expressions
 with a fixed meaning, there is no general shape for associative
 functions, so that proofs can only be done for special cases. 
 
-\subsection{Embedding of Haskell Types}
-\label{sec:embedding-constants}
-
-Accelerate supports a wide range of numeric types as base types for
-array computations. Almost all of these types have no suitable
-counterpart in Agda, which only supports natural numbers in unary
-encoding. For that reason, our embedding keeps these types 
-abstract in Agda. To specify functions that are polymorphic in such a
-Haskell type or depend on it in some way, we have reified these types
-in an Agda type \texttt{Element}.
+In any case, providing such information would be done by including an
+additional argument that holds a suitable proof object, as in
 \begin{verbatim}
-data Element : Set where
-  Bool   : Element
-  Int    : Element
-  Float  : Element
-  Double : Element
-  Pair   : Element -> Element -> Element
-  ...
+fold : {E}{sh}{n} -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E)
+     -> Array (sh :< n >) E -> IsMonoid f e -> Array sh E
 \end{verbatim}
-Corresponding to Haskell type classes that are used in Accelerate, our
-embedding supplies predicates that characterize subsets. For example,
-the set of numeric type is defined by a predicate \texttt{IsNumeric}.
-\begin{alltt}
-IsNumeric : Element -> Set
-IsNumeric Int = \(\top\)
-IsNumeric Float = \(\top\)
-IsNumeric Double = \(\top\)
-IsNumeric _ = \(\bot\)
-\end{alltt}
+where
+\begin{verbatim}
+IsMonoid : {E} -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E) -> Set
+IsMonoid f e = ( IsAssociative f , IsUnit f e)
+\end{verbatim}
 
 \subsection{Embedding of Constants}
 \label{sec:embedding-constants}
@@ -426,7 +510,7 @@ not available at run time of \texttt{filter}.
 
 One might contemplate that an existential type like
 \begin{verbatim}
-exists (\ m : Nat -> m <= n -> Vector m E)
+exists Nat (\ m -> m <= n -> Vector m E)
 \end{verbatim}
 could be employed. However, it is not possible to build such an
 existential package because the evidence \texttt{m} is not available
@@ -523,4 +607,5 @@ build from this encoding in the Haskell code.
 %%% Local Variables: 
 %%% mode: latex
 %%% TeX-master: t
+%%% coding: utf-8
 %%% End: 
