@@ -581,16 +581,165 @@ uniformly as possible.
 \section{Implementation}
 \label{sec:implementation}
 
-Agda is compiled to Haskell.
+Ordinarily, Agda is an interactive tool for constructing proofs and
+verified programs. Programs may be run, which amounts to normalizing
+Agda expressions, but this process is not very efficient.
 
-The compiler supports a Haskell foreign function interface. 
+Alternatively, an interactively developed program may be compiled to
+Haskell using the Alonzo compiler. This compiler supports a Haskell
+foreign function interface (FFI), which enables Agda programs to invoke
+Haskell functions. 
 
-The sophisticated type structure of the Accelerate language is in the
-way.
+Using this interface amounts to declaring a typed identifier in Agda
+and then binding the identifier to a suitably typed Haskell
+function. As an example, consider the import of the \texttt{use}
+function.
+\begin{code}
+postulate 
+  useHs : {E : Set}
+      -> HsEltDict E -> HsArray HsDIM1 E -> Acc (AccArray HsDIM1 E)
+  {-# COMPILED useHs       (\ _ -> Accel.use) #-}
+\end{code}
+The first three lines introduce the typed identifier \texttt{useHs}
+and the last line is a pragma for the Alonzo compiler that binds the
+Agda identifier \texttt{useHs} to the Haskell expression on the right.
+But wait, this type looks very unpleasant and quite different to the
+one mentioned in Section~\ref{sec:array-types}. This difference arises
+because the type translation of Alonzo is unable to cope with the
+index type \texttt{Shape}. For that reason, the interface uses a
+simplified array type and adapter functions are required, both on the
+Agda side and on the Haskell side of the interface.
 
-The foreign function interface is not sufficiently expressive so that
-Agda types need to be encoded and corresponding structures need to be
-build from this encoding in the Haskell code. 
+At the foreign function interface level, all arrays are considered as
+one-dimensional arrays. Additional arguments are passed to encode the
+additional structure. The Agda adapter provides the encoding of this
+structure and the Haskell adapter decodes it again. 
+
+We believe that these adapations only have a minor performance impact
+because (1) most functions just manipulate abstract syntax, so that
+only AST construction is affected, and (2) internally, Accelerate
+considers all arrays as one-dimensional so that operations like
+\texttt{reshape} are no-ops at run time.
+
+Here is the Agda adapter for \texttt{use}:
+\begin{verbatim}
+use : {sh : Shape}{E : Element} -> PreArray E sh -> Array E sh
+use {sh}{E} (PA y) = Ar (useHs (EltDict E) y)
+\end{verbatim}
+It makes use of two wrapper types. \texttt{PreArray} wraps a
+one-dimensional Haskell using the constant \texttt{HsDIM1} (the
+\texttt{DIM1} type shown in Section~\ref{sec:accelerate} imported from
+Haskell via FFI) and the function \texttt{EltType} (not shown), which
+interprets a value of type \texttt{Element} as a Haskell type. The
+latter types are also imported via FFI.
+\begin{code}
+data PreArray (Elt : Element) : Shape -> Set where
+  PA : {sh : Shape}
+     -> HsArray HsDIM1 (EltType Elt) -> PreArray Elt sh
+\end{code}
+The \texttt{Array} type wraps an AST reference for an Accelerate
+array, where \texttt{Acc} and \texttt{AccArray} are types imported
+from Haskell.
+\begin{code}
+data Array (Elt : Element) : Shape -> Set where
+  Ar : {sh : Shape}
+     -> Acc (AccArray HsDIM1 (EltType Elt)) -> Array Elt sh
+\end{code}
+The \texttt{EltDict} function translates a value 
+\texttt{(E : Element)} into a Haskell expression that evaluates to a
+dictionary for the Haskell type of \texttt{E} for the Haskell type
+class \texttt{Elt}. Such a dictionary is passed, whenever that
+corresponding Haskell function has type class constraints.
+\begin{code}
+EltDict : (E : Element) -> HsEltDict (EltType E)
+\end{code}
+
+The Haskell side of the adapter has several purposes. First, it
+materializes the type class dictionaries from the encoding that we
+just discussed. Second, it reconstructs sufficient information about
+the array shape so that the intended operation can execute. Here is
+the code for \texttt{Accel.use}, where the module name \texttt{A}
+is a shorthand for \texttt{Data.Array.Accelerate}.
+\begin{hcode}
+use :: EltDict e -> Array A.DIM1 e -> A.Acc (A.Array A.DIM1 e)
+use EltDict (ARRAY ar) = (A.use ar)
+\end{hcode}
+It does not have to reconstruct any information except the type class
+constraint. This constraint is materialized using the type
+\texttt{EltDict} below.
+\begin{hcode}
+data EltDict e where
+  EltDict :: (A.Elt e) => EltDict e
+\end{hcode}
+This datatype is built such that each value captures the \texttt{Elt}
+dictionary of type \texttt{e}. It remains to build such values for all
+types that we want to transport across the FFI. These are the values
+used by the (Agda) \texttt{EltDict} function. Here are two examples.
+\begin{hcode}
+eltDictBool :: EltDict Bool
+eltDictBool = EltDict
+
+eltDictInt :: EltDict Int
+eltDictInt = EltDict
+\end{hcode}
+
+As an example for a function that require more work on either side,
+consider the \texttt{fold} operation. 
+\begin{code}
+fold : {E}{sh}{n}
+     -> (Exp E -> Exp E -> Exp E)
+     -> Exp E
+     -> Array E (sh :< n >)
+     -> Array E sh
+fold {E}{sh}{n} f (Ex e) (Ar a) =
+  Ar (foldHs (EltDict E) (toHsInt (size sh)) (toHsInt n)
+             (unwrap2 f) e a)
+\end{code}
+As values of type \texttt{Exp} also need a wrapper type in Agda (it is
+not possible to import type constructors via the FFI), there is some
+unwrapping going on for the \texttt{e} and \texttt{f}
+arguments. The implementation of \texttt{fold} just calls the
+\texttt{foldHs} function and encodes the information about the shape
+in two number arguments. Here, \texttt{size sh} is the size of the
+result and \texttt{n} is the size of the dimension that is folded. As
+these values are first available as Agda natural numbers, they need to
+be converted to Haskell numbers using the function \texttt{toHsInt}.
+
+The \texttt{foldHs} function is defined via the FFI.
+\begin{code}
+postulate
+  foldHs : {A : Set}
+          -> HsEltDict A
+          -> HsInt
+          -> HsInt
+          -> (AccExp A -> AccExp A -> AccExp A)
+          -> AccExp A
+          -> Acc (AccArray HsDIM1 A)
+          -> Acc (AccArray HsDIM1 A)
+  {-# COMPILED foldHs      (\_ -> Accel.fold) #-}
+\end{code}
+The Haskell adapter needs to reconstruct the \texttt{Elt} dictionary
+as before, but it also needs to reshape the one-dimensional array
+representation into a two-dimensional one for executing the fold
+operation. The two size arguments are required for exactly this
+reshape operation. With that insight, the code is straightforward.
+\begin{hcode}
+fold :: EltDict a
+     -> Int -> Int
+     -> (A.Exp a -> A.Exp a -> A.Exp a)
+     -> A.Exp a
+     -> A.Acc (A.Array A.DIM1 a)
+     -> A.Acc (A.Array A.DIM1 a)
+fold EltDict size2 size1 f e a =
+     (A.reshape (A.lift (A.Z A.:. size2))
+      (A.fold f e
+       (A.reshape (A.lift (A.Z A.:. size2 A.:. size1)) a)))
+\end{hcode}
+
+Fortunately, the \texttt{fold} example is about as complicated as the
+adapter code gets. There are also many cases where at least one side
+of the adapter code is trivial. However, each case must be considered
+separately. 
 
 \section{Conclusion}
 \label{sec:conclusion}
