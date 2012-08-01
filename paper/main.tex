@@ -105,6 +105,10 @@ actual length of the vector at compile time.\footnote{An
   arguments indicated by underscores in the defining occurrence of an
   identifier.} 
 \begin{verbatim}
+data Nat : Set where
+  zero : Nat
+  suc  : Nat -> Nat
+
 data Vec (A : Set) : Nat -> Set where
   []   : Vec A zero
   _::_ : {n : Nat} -> A -> Vec A n -> Vec A (suc n)
@@ -211,28 +215,13 @@ type DIM1 = DIM0 :. Int
 \section{Related Work}
 \label{sec:related-work}
 
-Dependent types for array programming: 
-\begin{itemize}
-\item "Dependent Types for Distributed Arrays".
-Wouter Swierstra and Thorsten Altenkirch. Postproceedings of TFP 2008.
-\item "More Dependent Types for Distributed Arrays".
-Wouter Swierstra. Accepted for publication in the Journal of Higher-order and Symbolic Computation.
-\end{itemize}
-This work focuses on describing distribution strategies using dependent types (which is orthogonal to our work). However, to characterise distributions, it also tracks bounds in types.
+Peebles formalised parts of the API of the Haskell array library Repa using Agda~\cite{peebles:derpa}. The formalisation uses the same shape structure as we are using in Accelerate, but array computations are neither embedded nor can parallel high-performance code be generated.
 
-DML:
-\begin{itemize}
-\item Xi, Hongwei (March 2007). "Dependent ML: An Approach to Practical Programming with Dependent Types". Journal of Functional Programming 17 (2). [There is a previous ICFP paper co-authored with his advisor Bob Harper.]
-\end{itemize}
-Extension of ML to track array bounds.
+Swierstra and Altenkirch investigated the use of dependent types for \emph{distributed} array programming~\cite{swierstra-altenkirch:dep-types-for-distr-arrays,swierstra:more-dependent-types}. Their notation for distributed arrays was inspired by X10 and the main focus is on expressing locality aware algorithms.
 
-Other embedded array languages:
-\begin{itemize}
-\item Accelerator: C++ library providing data-parallel GPU programming; subsequent work by Satnam Singh provides an F\# binding (but that was never published as for as I know---double check); the language provides only a small subset of the functionality of Accelerate
-\item Copperhead: embedded array language in Python; no static guarantees; performance varied widely in our experiments
-\item anything else?
-\end{itemize}
+Dependent ML is an ML dialect with restricted form of dependent types, which, among other applications, may be used to statically check array bounds in array operations~\cite{xi:dml-jfp}. However, only simple indexing and array updating are considered and not aggregate array operations, such as those provided by Accelerate.
 
+Accelerator~\cite{Tarditi:2006} enables embedded GPU computations in C\# programs; it subsequently also added F\# support. However, no attempt is made to track properties of array programs statically. Similarly, Copperhead~\cite{Catanzaro:EECS-2010-124} embedded an array language into Python, but does not attempt to track information statically.
 
 \section{Dependent Types for Accelerate}
 \label{sec:dependent-types}
@@ -781,7 +770,7 @@ Accelerate would make the adaptation to an Agda frontend much simpler.
 %
 % ---- Bibliography ----
 %
-\bibliography{abbrevs,papers,books,collections,misc,theses}
+\bibliography{local,abbrevs,papers,books,collections,misc,theses}
 \bibliographystyle{abbrv}
 
 \end{document}
