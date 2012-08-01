@@ -744,6 +744,39 @@ separately.
 \section{Conclusion}
 \label{sec:conclusion}
 
+We have build an experimental Agda frontend for the Accelerate
+language. The goal of this experiment was to explore potential uses of
+dependently-typed programming for data-parallel languages. 
+
+At the moment, the outcome of the experiment is mixed. It is
+successful, because we have been able to construct Agda functions for
+a representative sample of Accelerate's functionality.
+However, there was less scope for encoding extra information in the
+dependent types than we had hoped for. Exact matching of array bounds
+works, but results in restrictions (like the problems with
+\texttt{zipWith} and filtering) that were not anticipated.
+
+Exploiting algebraic properties did not work out in the intended way, mainly
+because it boils down to asserting that some AST denotes an
+associative function. However, these assertions cannot be proven: the
+proof would have to apply the semantics to the AST, but the AST is an
+abstract type in our implementation. An AST representation in Agda
+might give us a better handle at this problem. 
+
+In some places, the Agda frontend is less dynamic than Accelerate. In
+a number of places, Accelerate accepts a run-time value of type
+\texttt{Exp sh} for a shape argument, where the Agda frontend requires
+a value of type \texttt{Shape}. To address this problem, we would have
+to include a \texttt{Shape}-indexed encoding of the \texttt{Shape}
+type in the \texttt{Element} type so that we can describe the type of
+an expression whose value has a certain shape. 
+
+Finally, the type translation of Agda's FFI has many shortcomings that
+caused a number of problems for transporting information between Agda
+and Haskell. One part of the problem is, unfortunately, the rich type
+structure of Accelerate which already encodes much useful
+information. An alternative, untyped (or less-typed) interface to
+Accelerate would make the adaptation to an Agda frontend much simpler.
 
 %
 % ---- Bibliography ----
