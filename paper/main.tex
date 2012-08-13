@@ -57,13 +57,13 @@ University of New South Wales, Sydney, Australia,\\
 \section{Introduction}
 \label{sec:introduction}
 
-Generative approaches to programming parallel hardware promise to combine high-level programming models with high-performance. They are especially attractive for targeting restricted architectures, such as GPUs (graphics processor units), that cannot efficiently execute code aimed at conventional multicore CPUs. Instead, GPUs require a high degree of data parallelism, restricted control flow, and carefully tailored data access patterns to be efficient. Previous work ---for example, Accelerator~\cite{??}, Copperhead~\cite{??}, and Accelerate~\cite{ChakravartyKellerLeeMcdonellGrover2011}--- demonstrates that embedded array languages with a custom code generator can meet those GPU constraints by carefully limiting the embedded language constructs.
+Generative approaches to programming parallel hardware promise to combine high-level programming models with high-performance. They are especially attractive for targeting restricted architectures, such as GPUs (graphics processor units), that cannot efficiently execute code aimed at conventional multicore CPUs. Instead, GPUs require a high degree of data parallelism, restricted control flow, and carefully tailored data access patterns to be efficient. Previous work ---for example, Accelerator~\cite{Tarditi:2006}, Copperhead~\cite{Catanzaro:EECS-2010-124}, and Accelerate~\cite{ChakravartyKellerLeeMcdonellGrover2011}--- demonstrates that embedded array languages with a custom code generator can meet those GPU constraints by carefully limiting the embedded language constructs.
 
 Given a host languages with an expressive type system, it is attractive to leverage that type system to express static properties of the embedded language. For example, Accelerate, an embedded array language for Haskell, uses Haskell's recent support for type-level programming like GADTs and type families in that manner~\cite{ChakravartyKellerLeeMcdonellGrover2011}. This is especially important for approaches relying on runtime code generation as we want to mimise the number of potential faults at application runtime, which coincides with the compile time of the embedded language. Moreover, static guaranties hold the potential to improve the predictability of parallel performance.
 
 Dependent types are an emerging approach to certified programming, where invariants are established in the form of types and proved at compile time. Many of Haskell's type-level extensions used in Accelerate approximate various aspects of dependently-typed programming. Hence, it it is natural to ask whether fully-fledged dependent types, such as those provided by Agda, improve the specification of an embedded language like Accelerate, whether they increase the scope of static guarantees, and whether they may be leveraged to predict performance more accurately.
 
-This paper is a first investigation into this topic. It reports of a
+This paper is a first investigation into this topic. It reports on a
 partial port of Accelerate to a new, dependently-typed host language,
 Agda \cite{Norell2008,BoveDybjerNorell2009}. Agda is particularly
 suited to this port because of its foreign function interface to
@@ -138,7 +138,7 @@ get (x :: xs) zero    p       = x
 get (x :: xs) (suc m) (s<s p) = get xs m p
 \end{verbatim}
 This code cannot fail at run time because a caller has to
-construct the proof tree for \verb+m < n+ before invoking \verb+get+.
+construct the proof tree for \verb+m < n+ before invoking \verb+get+. (In Agda, arguments in curly braces are \emph{implicit arguments} that will be inferred if omitted in an application.)
 
 \subsection{Accelerate}
 \label{sec:accelerate}
@@ -149,7 +149,7 @@ GPUs. It is a \emph{generative library}, as its data-parallel array
 operations are not executed directly, but instead construct abstract
 syntax trees (AST) representing an entire data-parallel
 subcomputation. These \emph{computation representations} are executed
-using a \verb+run+ operation that accepts such an AST (of type
+using a \verb+run+ operation that accepts such an representation (of type
 \verb+Acc a+), compiles it to GPU kernels, uploads it to the device,
 executes it, and retrieves the results.\footnote{To distinguish
   Haskell code from Agda code, we display the former in blue and with
@@ -277,7 +277,7 @@ dotp{E} xs ys =
   fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
 \end{code}
 Unlike the Accelerate code, this function is polymorphic with respect
-to the array element type, provided it is numeric. It furthermore
+to the array element type, provided it is numeric.\footnote{In Agda, arguments in double curly braces are \emph{instance arguments}~\cite{DevriesePiessens2011}. We use them much like type class constraints are used in Haskell.} It furthermore
 takes the length $n$ as a parameter thus ensuring that the two input
 vectors have the same size. The \texttt{PreVector} type of the
 arguments corresponds to the plain \texttt{Vector} type in Accelerate,
@@ -298,7 +298,7 @@ data Shape : Set where
 Asking for arrays of equal shape, as in the signature of \texttt{use},
 means that the arrays have to have the exact same layout.
 The functions \texttt{fold}, \texttt{zipWith}, and \texttt{:::} are
-discussed in the subsequent Subsections. The functions \verb|_+_| and
+discussed in the subsequent subsections. The functions \verb|_+_| and
 \verb|_*_| both have the same type:
 \begin{code}
 _+_ : {E : Element} {{p : IsNumeric E}} -> Exp E -> Exp E -> Exp E
@@ -326,8 +326,8 @@ reshape :: Exp sh -> Acc (Array sh' e) -> Acc (Array sh e)
 \end{hcode}
 For this reshaping to work correctly, the underlying
 number of elements must remain the same. For example, while it makes sense
-to reshape a two-dimensional $3\times 4$-array  to a vector of size
-$12$ or to a three-dimensional $3\times2\times2$-array, whereas an attempt to
+to reshape a two-dimensional $3\times 4$-array to a vector of size
+$12$ or to a three-dimensional $3\times2\times2$-array, an attempt to
 reshape the same array to a $2\times5$-array should be rejected at
 compile time.
 
@@ -457,8 +457,8 @@ s ::: E = Ex (constantFromString (EltDict E) (ReadDict E) s)
 \end{verbatim}
 The arguments \texttt{s} and \texttt{E} are explicit, but the
 remaining ones are to be inferred by Agda.
-The argument \texttt{nu} is an instance argument that is automatically
-filled-in with a suitably typed value in scope
+As mentioned before, the argument \texttt{nu} is an instance argument; it is automatically
+filled-in with a suitably typed value that is currently in scope
 \cite{DevriesePiessens2011}. Here, the predicate 
 \texttt{IsNumeric} plays the role of a type class that characterizes
 the numeric types.
@@ -475,7 +475,7 @@ and \texttt{ReadDict}.
 
 In a number of places, Accelerate's generativity limits the
 applicability of dependent typing. We already mentioned that the
-formalization of associativity or of the concept monoid gets
+formalization of associativity or of the concept of a monoid gets
 unmanageable because such properties have to be asserted for abstract syntax.
 
 For a similar problem, consider an implementation of the \texttt{filter}
@@ -491,17 +491,13 @@ filter : {n m : Nat}{E : Element}
 The problem is that the size of the result
 cannot be determined statically. In fact, the only thing we know about
 \texttt{m} is that it must be less than or equal to
-\texttt{n}. However, we cannot prove this from the code because the
-Accelerate implementation computes the length of the result in a quite
-subtle way. Moreover, as Accelerate deals with the construction of
-abstract syntax most of the time, the value of \texttt{m} is simply
-not available at run time of \texttt{filter}. 
+\texttt{n}. However, we cannot prove this from the code because of a staging restriction. The Accelerate implementation computes the length of the result only when the generated GPU code is executed. The function \texttt{Exp E -> Exp Bool} maps abstract syntax to abstract syntax; it does not directly implement a Boolean predicate. Hence, we cannot use the predicate in the result type of \texttt{filter} to more accurately constrain the size of the resulting vector --- unless we include an evaluator for Accelerate expressions. 
 
-One might contemplate that an existential type like
+We might contemplate emplying an existential type like
 \begin{verbatim}
 exists Nat (\ m -> m <= n -> Vector m E)
 \end{verbatim}
-could be employed. However, it is not possible to build such an
+However, it is not possible to build such an
 existential package because the evidence \texttt{m} is not available
 when the package is constructed.
 
@@ -510,9 +506,9 @@ used which is compatible with filtering of elements. The idea of this
 encoding is to keep all elements but mark those which are no longer
 present because they have been filtered out.
 There are several ways of implementing this idea. The simplest
-approach is to wrap each element in a maybe type.
+approach is to wrap each element in a maybe type or
 pair up each element with a boolean flag that indicates
-its presence.\footnote{A \texttt{Maybe} type would be a better option,
+its presence.\footnote{A \texttt{Maybe} type is on one hand the better option,
   but it has to be coded without using pattern matching.}
 \begin{verbatim}
 FVector : Nat -> Element -> Set
