@@ -307,7 +307,7 @@ The embedding declares further subsets all in the same style.
 To see the Agda embedding in action, we translate the
 dot product example from Section~\ref{sec:accelerate} to Agda.
 \begin{code}
-dotp : {E : Element} {{p : IsNumeric E}} {n : Nat}
+dotp : forall {E : Element} {{p : IsNumeric E}} {n : Nat}
      -> PreVector n E -> PreVector n E -> Scalar E
 dotp{E} xs ys = 
   let xs' = use xs
@@ -461,12 +461,12 @@ functions, so that proofs can only be done for special cases.
 In any case, providing such information would be done by including an
 additional argument that holds a suitable proof object, as in
 \begin{verbatim}
-fold : {E}{sh}{n} -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E)
+fold : forall {E}{sh}{n} -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E)
      -> Array (sh :< n >) E -> IsMonoid f e -> Array sh E
 \end{verbatim}
 where
 \begin{verbatim}
-IsMonoid : {E} -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E) -> Set
+IsMonoid : forall {E} -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E) -> Set
 IsMonoid f e = ( IsAssociative f , IsUnit f e)
 \end{verbatim}
 
@@ -532,7 +532,7 @@ the predicate.  First of all, filtering only makes sense for
 one-dimensional arrays, that is, for vectors. To see the second catch,
 let's try to write down a dependent type signature for \texttt{filter}.
 \begin{verbatim}
-filter : {n m : Nat}{E : Element}
+filter : forall {n m : Nat}{E : Element}
        -> Vector n E -> (Exp E -> Exp Bool) -> Vector m E
 \end{verbatim}
 The problem is that the size of the result
@@ -553,10 +553,9 @@ used which is compatible with filtering of elements. The idea of this
 encoding is to keep all elements but mark those which are no longer
 present because they have been filtered out.
 There are several ways of implementing this idea. The simplest
-approach is to wrap each element in a maybe type or
-pair up each element with a boolean flag that indicates
-its presence.\footnote{A \texttt{Maybe} type is on one hand the better option,
-  but it has to be coded without using pattern matching.}
+approach is to pair up each element with a boolean flag that indicates
+its presence.\footnote{The \texttt{Maybe} type is not an option
+  because Accelerate does not support \texttt{Maybe} types as array elements.}
 \begin{verbatim}
 FVector : Nat -> Element -> Set
 FVector n E = Vector n (Pair Bool E)
@@ -567,7 +566,7 @@ the\texttt{FVector} does not change. Furthermore, filtering could be
 extended to multi-dimensional arrays, although it is not clear if an
 array that includes non-existing elements is a sensible notion.
 \begin{verbatim}
-filterF : {n : Nat}{E : Element}
+filterF : forall {n : Nat}{E : Element}
         -> (Exp E -> Exp Bool) -> FVector n E -> FVector n E
 filterF {n}{E} pred vec =
   map g vec
@@ -580,7 +579,7 @@ materialize a dummy result for each absent element in the argument
 vector or apply the function to absent elements, too.\footnote{This
   complication could be avoided with the \texttt{Maybe} type.}
 \begin{verbatim}
-mapF : {n : Nat}{E F : Element}
+mapF : forall {n : Nat}{E F : Element}
      -> Exp F -> (Exp E -> Exp F) -> FVector n E -> FVector n F
 mapF {n}{E}{F} defaultF f vec =
   map g vec
@@ -594,7 +593,7 @@ elements. In particular, a fold operation which reduces a filtered
 vector with a monoid returns a single value. In Accelerate, such a value has type
 \texttt{Scalar}, which is a synonym for an array of dimension $0$.
 \begin{verbatim}
-foldF : {n : Nat}{E : Element}
+foldF : forall {n : Nat}{E : Element}
       -> (Exp E -> Exp E -> Exp E) -> Exp E
       -> FVector n E -> Scalar E
 foldF f e vec =
@@ -658,7 +657,7 @@ considers all arrays as one-dimensional so that operations like
 
 Here is the Agda adapter for \texttt{use}:
 \begin{verbatim}
-use : {sh : Shape}{E : Element} -> PreArray sh E -> Array sh E
+use : forall {sh : Shape}{E : Element} -> PreArray sh E -> Array sh E
 use {sh}{E} (PA y) = Ar (useHs (EltDict E) y)
 \end{verbatim}
 It makes use of two wrapper types. \texttt{PreArray} wraps a
@@ -719,7 +718,7 @@ eltDictInt = EltDict
 As an example for a function that requires more work on either side,
 consider the \texttt{fold} operation. 
 \begin{code}
-fold : {E}{sh}{n}
+fold : forall {E}{sh}{n}
      -> (Exp E -> Exp E -> Exp E)
      -> Exp E
      -> Array (sh :< n >) E
