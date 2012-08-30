@@ -44,21 +44,20 @@ University of New South Wales, Sydney, Australia,\\
 \begin{frame}
   \frametitle{Introduction}
   \begin{itemize}
-  \item Embedded languages
+  \item Domain-specific embedded languages
   \item Dependent types
-  \item Generative programming
-  \item Data-parallel programming
+  \item D-Generative programming
+  \item Data parallelism
   \end{itemize}
 \end{frame}
 
 \begin{frame}
   \frametitle{Overview}
   \begin{block}{Mission}
-    Construct a generative, data parallel programming language embedded in Agda
+    Construct a dependently-typed, generative, data parallel programming language
   \end{block}
   \begin{block}<2->{Means}
-    \dots\ by creating a --- more expressive --- Agda frontend for the
-    Accelerate language.
+    \dots\ by creating an Agda frontend for the Accelerate language.
   \end{block}
 \end{frame}
 
@@ -69,6 +68,7 @@ University of New South Wales, Sydney, Australia,\\
   \item Data-parallel array language
   \item Expressive embedding in Haskell
   \item Generates GPU code at run time
+  \item See Chakravarty et al, DAMP2011
   \end{itemize}
 \end{frame}
 
@@ -76,7 +76,8 @@ University of New South Wales, Sydney, Australia,\\
   \frametitle{Accelerate Example}
   \framesubtitle{Dot Product}
 \begin{verbatim}
-dotp :: Vector Float -> Vector Float -> Acc (Scalar Float)
+dotp :: Vector Float -> Vector Float
+     -> Acc (Scalar Float)
 dotp xs ys = let xs' = use xs
                  ys' = use ys
              in  fold (+) 0 (zipWith (*) xs' ys')
@@ -123,7 +124,7 @@ type DIM0 = Z
 type DIM1 = DIM0 :. Int
 -- <and so on>
 \end{verbatim}
-  \item and simple shapes are built from two basic constructors
+  \item Shapes are built from two basic constructors
 \begin{verbatim}
 data Z       = Z
 data sh :. i = sh :. i
@@ -155,7 +156,7 @@ data Vec (A : Set) : Nat -> Set where
   []   : Vec A zero
   _::_ : {n : Nat} -> A -> Vec A n -> Vec A (suc n)
 \end{verbatim}
-  \item Enables the construction of statically safe access operations
+  \item<2-> Enables the construction of statically safe access operations
     for vectors
 \begin{verbatim}
 get : forall {A : Set} {n : Nat} ->
@@ -191,19 +192,19 @@ get (x :: xs) (suc m) (s<s p) = get xs m p
   \frametitle{Example: Dot Product in Agda-Accelerate}
   \vspace{-\baselineskip}
 \begin{verbatim}
-dotp : forall {E : Element} {{p : IsNumeric E}} {n : Nat}
-     -> PreVector n E -> PreVector n E -> Scalar E
-dotp{E} xs ys = 
+dotp : forall {n : Nat}
+     -> PreVector n Float -> PreVector n Float
+     -> Scalar Float
+dotp xs ys = 
   let xs' = use xs
       ys' = use ys
   in
-  fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
+  fold _+_ ("0" ::: Float) (zipWith _*_ xs' ys')
 \end{verbatim}
   \begin{itemize}
-  \item \texttt{PreVector n E} : a vector of $n$ elements of
-    type \texttt{E}
-  \item \texttt{Scalar E} : code that evaluates to a scalar of type \texttt{E}
-  \item \texttt{IsNumeric E} restricts \texttt{E} to numeric types
+  \item \texttt{PreVector n Float} : a vector of $n$ elements of
+    type \texttt{Float}
+  \item \texttt{Scalar Float} : \textbf{code} that evaluates to a scalar of type \texttt{Float}
   \end{itemize}
 \end{frame}
 \begin{frame}[fragile]
@@ -227,7 +228,8 @@ Scalar E      = Array    Z          E
 \begin{frame}[fragile]
   \frametitle{Bounds Checking: zipWith}
 \begin{verbatim}
-zipWith : forall {A B C} {sh} -> (Exp A -> Exp B -> Exp C)
+zipWith : forall {A B C} {sh}
+        -> (Exp A -> Exp B -> Exp C)
         -> Array sh A -> Array sh B -> Array sh C
 \end{verbatim}
   \begin{itemize}
@@ -261,15 +263,22 @@ shmin .(s1 :< n1 >) .(s2 :< n2 >) {EqS {s1} {s2} {n1} {n2} y} =
 
 \begin{frame}[fragile]
   \frametitle{Bounds Checking: fold and fold1}
-
+  \vspace{-\baselineskip}
   \begin{itemize}
   \item \texttt{fold} and \texttt{fold1} take a binary operation and
     reduce one dimension of an array using the operation
-  \item \texttt{fold} works for any array, but \texttt{fold1} requires
-    a non-empty array argument
+\begin{verbatim}
+fold op e []          = e
+fold op e [a]         = a
+fold op e [a1 ... an] = op (fold op e [a1 ... ai])
+                           (fold op e [ai+1 ... an])
+\end{verbatim}
+  \item \texttt{fold} works for any array, but \texttt{fold1} elides
+    the \texttt{e} argument and requires a non-empty array
   \item The latter restriction is not expressed in Haskell-Accelerate
   \end{itemize}
-  \begin{block}<2->{\vspace{-\baselineskip}}\small
+  \begin{block}<2->{\vspace{-\baselineskip}}
+\vspace{-\baselineskip}\small
 \begin{verbatim}
 fold  :: (Shape ix, Elt a) =>
          (Exp a -> Exp a -> Exp a) -> Exp a ->
@@ -278,6 +287,7 @@ fold1 :: (Shape ix, Elt a) =>
          (Exp a -> Exp a -> Exp a) ->
          Acc (Array (ix :. Int) a) -> Acc (Array ix a)
 \end{verbatim}
+\vspace{-\baselineskip}
   \end{block}
 \end{frame}
 
@@ -298,10 +308,10 @@ fold1 : forall {E}{sh}{n}
 \begin{frame}[fragile]
   \frametitle{Another Issue with fold and fold1}
   \begin{itemize}
-  \item \texttt{fold f e} and \texttt{fold1 f}  partition their array
-    argument and apply \texttt{f} in a bracketing that is a-priori unknown
-  \item For deterministic results, \texttt{f} must be associative and
-    (in case of \texttt{fold}) \texttt{e} must be a unit of \texttt{f}
+  \item \texttt{fold op e} and \texttt{fold1 op}  partition their array
+    argument and apply \texttt{op} in a bracketing that is a-priori unknown
+  \item For deterministic results, \texttt{op} must be associative and
+    (in case of \texttt{fold}) \texttt{e} should be a unit of \texttt{op}
   \item<2-> Such restrictions can be expressed in Agda
   \item<3-> Might ask for a signature like this
 \begin{verbatim}
@@ -333,7 +343,119 @@ record Monoid (E : Set) : Set where
     a HOAS encoding of the operation's \textbf{syntax}
   \item<3-> Associativity of syntax is meaningless \dots 
   \end{itemize}
-  
 \end{block}
 \end{frame}
+
+\section{Limitation}
+
+\begin{frame}[fragile]
+  \frametitle{A Limitation}
+  \begin{itemize}
+  \item Haskell-Accelerate admits implementing a \texttt{filter}
+    operation (for vectors) with the usual meaning
+  \item<2-> Surprisingly, it cannot easily be implemented in Agda-Accelerate!
+  \item<2-> Why is that?
+  \end{itemize}
+  \begin{block}<3->{Implementation attempt}
+\begin{verbatim}
+filter : forall {n m : Nat}{E : Element}
+       -> Vector n E -> (Exp E -> Exp Bool) 
+       -> Vector m E
+\end{verbatim}
+    \begin{itemize}
+    \item Problem: What is \texttt{m}?
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{A Workaround}
+  \begin{itemize}
+  \item Provide a special type of filtered vectors that pair each
+    element with a boolean indicating its presence
+\begin{verbatim}
+FVector : Nat -> Element -> Set
+FVector n E = Vector n (Pair Bool E)
+\end{verbatim}
+  \item<2-> Now filtering becomes straightforward 
+\begin{verbatim}
+filterF : forall {n : Nat}{E : Element}
+        -> (Exp E -> Exp Bool)
+        -> FVector n E -> FVector n E
+filterF {n}{E} pred vec =
+  map g vec
+  where
+  g : Exp (Pair Bool E) -> Exp (Pair Bool E)
+  g bx = pair ((fst bx) && p (snd bx)) x
+\end{verbatim}
+  \end{itemize}
+\end{frame}
+\begin{frame}[fragile]
+  \frametitle{More Operations on Filtered Vectors}
+  \vspace{-\baselineskip}
+  \begin{block}{Mapping}
+  \vspace{-\baselineskip}\small
+\begin{verbatim}
+mapF : forall {n : Nat}{E F : Element}
+     -> Exp F -> (Exp E -> Exp F) 
+     -> FVector n E -> FVector n F
+\end{verbatim}
+    requires a dummy element of \texttt{F} to put in the result when
+    the corresponding source entry is not present
+  \end{block}
+  \begin{block}<2->{Folding}
+  \vspace{-\baselineskip}\small
+\begin{verbatim}
+foldF : forall {n : Nat}{E : Element}
+      -> (Exp E -> Exp E -> Exp E) -> Exp E
+      -> FVector n E -> Scalar E
+foldF f e vec =
+  fold f e (map (\ bx -> if (fst bx) then (snd bx) else e) vec)
+\end{verbatim}
+    gets out of the filtered vector back to a ``real'' value
+  \end{block}
+\end{frame}
+
+\section{Wrap Up}
+
+\begin{frame}
+  \frametitle{In the paper}
+  \begin{itemize}
+  \item More information on the representation of types and constants
+  \item Further examples
+  \item Description of the implementation using the foreign function
+    interface of the Alonzo compiler
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Conclusion}
+  \begin{itemize}
+  \item Only partially successful
+  \item Bounds checking works well
+  \item Large part could be done using lifted datatypes
+  \item Generative languages do not fit well with dependent types
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Example: Polymorphic Dot Product in Agda-Accelerate}
+  \vspace{-\baselineskip}
+\begin{verbatim}
+dotp : forall {E : Element} {{p : IsNumeric E}} {n : Nat}
+     -> PreVector n E -> PreVector n E -> Scalar E
+dotp{E} xs ys = 
+  let xs' = use xs
+      ys' = use ys
+  in
+  fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
+\end{verbatim}
+  \begin{itemize}
+  \item \texttt{PreVector n E} : a vector of $n$ elements of
+    type \texttt{E}
+  \item \texttt{Scalar E} : code that evaluates to a scalar of type \texttt{E}
+  \item \texttt{IsNumeric E} restricts \texttt{E} to numeric types
+  \end{itemize}
+\end{frame}
+
 \end{document}
