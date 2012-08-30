@@ -1,0 +1,339 @@
+\documentclass{beamer}
+% 20+5 minutes
+\input{macros}
+
+\AtBeginSection[]
+{
+  \begin{frame}<beamer>
+    \frametitle{Outline}
+    \tableofcontents[currentsection,currentsubsection]
+  \end{frame}
+}
+
+
+\title{Agda Meets Accelerate}
+\date{1.9.2012}
+\author{Peter Thiemann \and Manuel Chakravarty}
+\institute{%
+  University of Freiburg, Germany,\\
+  \texttt{thiemann@informatik.uni-freiburg.de}
+\and
+University of New South Wales, Sydney, Australia,\\
+\texttt{chak@cse.unsw.edu.au}
+}
+\begin{document}
+
+% begin titlepage
+% "`normal"' front page template:
+%\setbeamertemplate{title page}[default][rounded=true]
+\setbeamertemplate{navigation symbols}{}
+\begin{frame}[plain,label=fp]
+		\advance\textwidth by 3.2em\relax
+		\begin{minipage}{\textwidth}\par%
+				\maketitle
+		\end{minipage}
+		\hspace*{2.5em}%
+\end{frame}
+\makeatother 
+% end titlepage
+\setbeamertemplate{navigation symbols}[horizontal]
+
+\section{Introduction}
+
+
+\begin{frame}
+  \frametitle{Introduction}
+  \begin{itemize}
+  \item Embedded languages
+  \item Dependent types
+  \item Generative programming
+  \item Data-parallel programming
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Overview}
+  \begin{block}{Mission}
+    Construct a generative, data parallel programming language embedded in Agda
+  \end{block}
+  \begin{block}<2->{Means}
+    \dots\ by creating a --- more expressive --- Agda frontend for the
+    Accelerate language.
+  \end{block}
+\end{frame}
+
+\section{Accelerate}
+\begin{frame}
+  \frametitle{The Accelerate Language}
+  \begin{itemize}
+  \item Data-parallel array language
+  \item Expressive embedding in Haskell
+  \item Generates GPU code at run time
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Accelerate Example}
+  \framesubtitle{Dot Product}
+\begin{verbatim}
+dotp :: Vector Float -> Vector Float -> Acc (Scalar Float)
+dotp xs ys = let xs' = use xs
+                 ys' = use ys
+             in  fold (+) 0 (zipWith (*) xs' ys')
+\end{verbatim}
+  \begin{itemize}
+  \item \texttt{dotp xs ys} returns a representation of code that
+    computes the dot product of \texttt{xs} and \texttt{ys}
+  \item References to inputs via \texttt{use}
+  \item Specification of operations via HOAS (viz.\ \texttt{(+)} and \texttt{(*)})
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Running Accelerate Code}
+  \begin{itemize}
+  \item To execute \texttt{dotp}, Accelerate provides several
+    implementations of a \texttt{run} function:
+\begin{verbatim}
+CUDA.run :: Arrays a => Acc a -> a
+\end{verbatim}
+  \item This implementation
+    \begin{itemize}
+    \item compiles the code to GPU kernels
+    \item loads the \texttt{use}d arguments along with the code onto
+      the GPU
+    \item executes and
+    \item retrieves the result.
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Types in Accelerate}
+  \begin{itemize}
+  \item \texttt{Vector} and \texttt{Scalar} are suitable
+    instantiations of a parameterized array type:
+\begin{verbatim}
+type Scalar e = Array DIM0 e
+type Vector e = Array DIM1 e
+\end{verbatim}
+  \item Dimensions in turn are abbreviations for certain array shapes:
+\begin{verbatim}
+type DIM0 = Z
+type DIM1 = DIM0 :. Int
+-- <and so on>
+\end{verbatim}
+  \item and simple shapes are built from two basic constructors
+\begin{verbatim}
+data Z       = Z
+data sh :. i = sh :. i
+\end{verbatim}
+  \end{itemize}
+\end{frame}
+
+\section{Agda}
+\begin{frame}
+  \frametitle{Agda}
+  \begin{itemize}
+  \item A dependently-typed functional programming language
+    \begin{itemize}
+    \item Inductive datatype families with dependent pattern matching
+    \item Dependent records and parameterized modules
+    \item Universe polymorphism
+    \item \dots
+    \end{itemize}
+  \item Interactive proof assistant based on intuitionistic type theory
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Indexed Types}
+  \begin{itemize}
+  \item Standard example: vector type indexed by its size
+\begin{verbatim}
+data Vec (A : Set) : Nat -> Set where
+  []   : Vec A zero
+  _::_ : {n : Nat} -> A -> Vec A n -> Vec A (suc n)
+\end{verbatim}
+  \item Enables the construction of statically safe access operations
+    for vectors
+\begin{verbatim}
+get : forall {A : Set} {n : Nat} ->
+      Vec A n -> (m : Nat) -> m < n -> A
+get []        _       ()      -- impossible case
+get (x :: xs) zero    p       = x
+get (x :: xs) (suc m) (s<s p) = get xs m p
+\end{verbatim}
+  \end{itemize}
+\end{frame}
+
+\section{Dependent Types for Accelerate}
+
+\begin{frame}
+  \frametitle{Dependent Types for Accelerate}
+  \begin{block}{Expectations}
+    \begin{enumerate}
+    \item Augment array shapes with static size information
+    \item Correctness guarantees for fold-like operations
+    \item Express all Haskell examples with stronger guarantees
+    \end{enumerate}
+  \end{block}
+  \begin{block}<2->{Results}
+    \begin{enumerate}
+    \item Bounds checking works out.
+    \item Not satisfactory.
+    \item Some workarounds required.
+    \end{enumerate}
+  \end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Example: Dot Product in Agda-Accelerate}
+  \vspace{-\baselineskip}
+\begin{verbatim}
+dotp : forall {E : Element} {{p : IsNumeric E}} {n : Nat}
+     -> PreVector n E -> PreVector n E -> Scalar E
+dotp{E} xs ys = 
+  let xs' = use xs
+      ys' = use ys
+  in
+  fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
+\end{verbatim}
+  \begin{itemize}
+  \item \texttt{PreVector n E} : a vector of $n$ elements of
+    type \texttt{E}
+  \item \texttt{Scalar E} : code that evaluates to a scalar of type \texttt{E}
+  \item \texttt{IsNumeric E} restricts \texttt{E} to numeric types
+  \end{itemize}
+\end{frame}
+\begin{frame}[fragile]
+  \frametitle{The Array Type}
+  \begin{itemize}
+  \item The array type is indexed over a shape
+  \item Shapes contain size information
+\begin{verbatim}
+data Shape : Set where
+  Z     : Shape
+  _:<_> : Shape -> Nat -> Shape
+\end{verbatim}
+  \item \texttt{Vector} and \texttt{Scalar} are, again,
+    specializations of a shape-indexed array type
+\begin{verbatim}
+Vector n E    = Array    (Z :< n >) E
+Scalar E      = Array    Z          E
+\end{verbatim}
+  \end{itemize}
+\end{frame}
+\begin{frame}[fragile]
+  \frametitle{Bounds Checking: zipWith}
+\begin{verbatim}
+zipWith : forall {A B C} {sh} -> (Exp A -> Exp B -> Exp C)
+        -> Array sh A -> Array sh B -> Array sh C
+\end{verbatim}
+  \begin{itemize}
+  \item Ensures that only arrays of the exact same shape and size are
+    zipped together
+  \item More restrictive than Accelerate that only checks the
+    dimension and then takes the minimum
+  \item But that can also be encoded
+  \end{itemize}
+\end{frame}
+\begin{frame}[fragile]
+  \frametitle{Accelerate's zipWith Function in Agda}
+\begin{verbatim}
+zipWith' : forall {A B C} {sha shb} {p : EqShape sha shb}
+        -> (Exp A -> Exp B -> Exp C)
+        -> Array sha A -> Array shb B
+        -> Array (shmin sha shb {p}) C
+\end{verbatim}
+where\scriptsize
+\begin{verbatim}
+data EqShape : Shape -> Shape -> Set where
+  EqZ : EqShape Z Z
+  EqS : {s1 s2 n1 n2} -> EqShape s1 s2 -> EqShape (s1 :< n1 >) (s2 :< n2 >)
+
+shmin : (s1 : Shape) -> (s2 : Shape) -> { p : EqShape s1 s2 } -> Shape
+shmin .Z .Z {EqZ} = Z
+shmin .(s1 :< n1 >) .(s2 :< n2 >) {EqS {s1} {s2} {n1} {n2} y} =
+    shmin s1 s2 {y} :< min n1 n2 >
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Bounds Checking: fold and fold1}
+
+  \begin{itemize}
+  \item \texttt{fold} and \texttt{fold1} take a binary operation and
+    reduce one dimension of an array using the operation
+  \item \texttt{fold} works for any array, but \texttt{fold1} requires
+    a non-empty array argument
+  \item The latter restriction is not expressed in Haskell-Accelerate
+  \end{itemize}
+  \begin{block}<2->{\vspace{-\baselineskip}}\small
+\begin{verbatim}
+fold  :: (Shape ix, Elt a) =>
+         (Exp a -> Exp a -> Exp a) -> Exp a ->
+         Acc (Array (ix :. Int) a) -> Acc (Array ix a)
+fold1 :: (Shape ix, Elt a) =>
+         (Exp a -> Exp a -> Exp a) ->
+         Acc (Array (ix :. Int) a) -> Acc (Array ix a)
+\end{verbatim}
+  \end{block}
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Agda Signatures for fold and fold1}
+\begin{verbatim}
+fold : forall {E}{sh}{n}
+     -> (Exp E -> Exp E -> Exp E) -> Exp E
+     -> Array (sh :< n >) E 
+     -> Array sh E
+
+fold1 : forall {E}{sh}{n}
+      -> (Exp E -> Exp E -> Exp E)
+      -> Array (sh :< suc n >) E
+      -> Array sh E
+\end{verbatim}
+\end{frame}
+\begin{frame}[fragile]
+  \frametitle{Another Issue with fold and fold1}
+  \begin{itemize}
+  \item \texttt{fold f e} and \texttt{fold1 f}  partition their array
+    argument and apply \texttt{f} in a bracketing that is a-priori unknown
+  \item For deterministic results, \texttt{f} must be associative and
+    (in case of \texttt{fold}) \texttt{e} must be a unit of \texttt{f}
+  \item<2-> Such restrictions can be expressed in Agda
+  \item<3-> Might ask for a signature like this
+\begin{verbatim}
+fold : ... -> Monoid E
+     -> Array (sh :< n >) E -> Array sh E
+\end{verbatim}
+  \end{itemize}
+\end{frame}
+\begin{frame}[fragile]
+  \frametitle{A Monoidal Catch}
+An encoding of monoids in Agda:\scriptsize
+\begin{verbatim}
+record Monoid (E : Set) : Set where
+  field
+    op : E -> E -> E
+    un : E
+    op_assoc : forall {x y z} -> op (op x y) z = op x (op y z)
+    op_un_le : forall {x} -> op un x = x
+    op_un_re : forall {x} -> op x un = x
+\end{verbatim}
+\normalsize
+\begin{block}<2->{The Catch}
+  In the signature of \texttt{fold} \dots
+  \begin{itemize}
+  \item \texttt{E} is \textbf{not} a \texttt{Set}, but an element of a
+    data type that encodes Haskell datatypes
+  \item the type of the operation is
+    \texttt{(Exp E -> Exp E -> Exp E)}\\
+    a HOAS encoding of the operation's \textbf{syntax}
+  \item<3-> Associativity of syntax is meaningless \dots 
+  \end{itemize}
+  
+\end{block}
+\end{frame}
+\end{document}

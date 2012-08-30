@@ -1,0 +1,272 @@
+\DeclareOptionBeamer{shadow}[true]{\def\beamer@themeALU@shadow{#1}}
+\ExecuteOptionsBeamer{shadow=false}
+\ProcessOptionsBeamer
+
+\mode<presentation>
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% COLORS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Colors from CD
+\definecolor{alu-darkblue}{cmyk}{1,0.75,0,0}
+\definecolor{alu-lightblue}{cmyk}{0.7,0.45,0,0}
+\definecolor{alu-gray}{cmyk}{0,0,0,0.4}
+\definecolor{alu-red}{cmyk}{0,1,0.8,0.2}
+\definecolor{alu-black}{cmyk}{0,0,0,1}
+\definecolor{alu-lightgray}{cmyk}{0,0,0,0.15}
+
+\setbeamercolor{structure}{fg=alu-darkblue}
+% sets the background color
+\setbeamercolor{background canvas}{bg=white}
+
+\setbeamercolor*{palette primary}{use=structure,fg=white,bg=alu-darkblue}
+\setbeamercolor*{palette secondary}{use=structure,fg=black,bg=alu-lightgray}
+\setbeamercolor*{palette tertiary}{use=structure,fg=white,bg=alu-darkblue}
+
+\setbeamercolor{navigation symbols dimmed}{fg=alu-lightgray}
+\setbeamercolor{navigation symbols}{fg=alu-gray}
+
+\setbeamercolor{button}{bg=alu-darkblue}
+
+\setbeamercolor{normal text}{fg=alu-black}
+\setbeamercolor{alerted text}{fg=alu-red}
+
+% header frame color
+\setbeamercolor{frametitle}{parent=palette primary}
+\setbeamercolor{frametitle bottomblock}{parent=palette secondary}
+
+% items
+\setbeamercolor{item projected}{bg=alu-darkblue}
+\setbeamercolor{subitem projected}{bg=alu-darkblue}
+\setbeamertemplate{sections/subsections in toc}[square]
+\setbeamertemplate{itemize items}[square]
+
+\setbeamercolor*{author in head/foot}{parent=palette secondary}
+\setbeamercolor*{title in head/foot}{parent=palette secondary}
+\setbeamercolor*{date in head/foot}{parent=palette secondary}
+
+\setbeamercolor*{section in head/foot}{parent=palette primary}
+\setbeamercolor*{subsection in head/foot}{parent=palette secondary}
+
+\setbeamercolor{block title}{use=structure,fg=white,bg=structure.fg}
+\setbeamercolor{block title alerted}{use=alerted text,fg=white,bg=alerted text.fg!75!black}
+\setbeamercolor{block title example}{use=example text,fg=white,bg=example text.fg!75!black}
+
+\setbeamercolor{block body}{parent=normal text,use=block title,bg=block title.bg!10!bg}
+\setbeamercolor{block body alerted}{parent=normal text,use=block title alerted,bg=block title alerted.bg!10!bg}
+\setbeamercolor{block body example}{parent=normal text,use=block title example,bg=block title example.bg!10!bg}
+
+\setbeamerfont{author}{size=\small}
+\setbeamerfont{institute}{size=\tiny}
+\setbeamerfont{date}{size=\tiny}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Inner theme
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% items should have a square
+\setbeamertemplate{sections/subsections in toc}[square]
+\setbeamertemplate{items}[square]
+
+% rounded blocks
+\setbeamercolor{title}{use=structure,fg=white,bg=structure.fg}
+% \setbeamertemplate{title page}[default][colsep=-4bp,rounded=true,shadow=\beamer@themeALU@shadow]
+% \setbeamertemplate{part page}[default][colsep=-4bp,rounded=true,shadow=\beamer@themeALU@shadow]
+% \setbeamertemplate{blocks}[rounded][shadow=\beamer@themeALU@shadow,parent=palette tertiary]
+% \setbeamertemplate{title page}[default][colsep=-4bp,rounded=false,shadow=\beamer@themeALU@shadow]
+\setbeamertemplate{title page}[ALU]
+\setbeamertemplate{part page}[default][colsep=-4bp,rounded=false,shadow=\beamer@themeALU@shadow]
+\setbeamertemplate{blocks}[shadow=\beamer@themeALU@shadow,parent=palette tertiary]
+
+% \setbeamertemplate{title page}[default][colsep=-4bp,rounded=true,shadow=\beamer@themerounded@shadow]
+% \setbeamertemplate{part page}[default][colsep=-4bp,rounded=true,shadow=\beamer@themerounded@shadow]
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Outer theme
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newdimen\beamer@sidebarwidth
+\newdimen\beamer@headheight
+\usebeamerfont{frametitle}
+\beamer@headheight=2.5\baselineskip
+\reset@font
+
+\beamer@sidebarwidth=2.5em
+\newdimen\beamer@temppaperwidth
+
+\mode<presentation>
+
+% Footer of the page
+\defbeamertemplate*{footline}{infolines theme}
+{
+\leavevmode%
+\beamer@temppaperwidth=\paperwidth%
+\addtolength{\beamer@temppaperwidth}{-\beamer@sidebarwidth}%
+% \addtolength{\beamer@temppaperwidth}{-1.2pt}%
+\addtolength{\beamer@temppaperwidth}{8pt}%
+\hbox{%
+\begin{beamercolorbox}[wd=.333333\beamer@temppaperwidth,ht=3ex,dp=1ex,center]{author in head/foot}%
+\usebeamerfont{author in head/foot}\insertshortauthor%~~(\insertshortinstitute)
+\end{beamercolorbox}%
+\begin{beamercolorbox}[wd=.333333\beamer@temppaperwidth,ht=3ex,dp=1ex,center]{title in head/foot}%
+\usebeamerfont{title in head/foot}\insertshorttitle
+\end{beamercolorbox}%
+\begin{beamercolorbox}[wd=.333333\beamer@temppaperwidth,ht=3ex,dp=1ex,right]{date in head/foot}%
+\usebeamerfont{date in head/foot}\insertshortdate{}\hspace*{2em}
+\insertframenumber{} / \inserttotalframenumber\hspace*{2ex} 
+\end{beamercolorbox}%
+\begin{beamercolorbox}[wd=1pt,ht=2.25ex,dp=1ex,right]{background}%
+\end{beamercolorbox}
+}%
+% \vskip0pt%
+}
+
+% Sidebar
+% activate sidebar on right side
+\setbeamersize{sidebar width right=\beamer@sidebarwidth}
+
+% sidebar template
+\defbeamertemplate*{sidebar right}{sidebar theme}
+{
+\vfill
+\hspace{2em}\vbox{\insertlogo}
+\rlap{\smash{\parbox[t]{3cm}{~}}}%
+\par\vspace{-6pt}\hspace{1.5em}\llap{\usebeamertemplate***{navigation symbols}}
+}%
+
+\defbeamertemplate*{frametitle}{ALU}{%
+\vskip-.5ex%
+\beamer@tempdim=\paperwidth%
+\addtolength{\beamer@tempdim}{-\beamer@sidebarwidth}%
+\addtolength{\beamer@tempdim}{8.2pt}%
+\hbox{%
+\begin{beamercolorbox}[ht=3.5em,wd=\beamer@tempdim,leftskip=1em,rightskip=0pt]{frametitle}
+\vbox{}\vskip-.75ex%
+    \usebeamerfont*{frametitle}\insertframetitle%
+      \ifx\insertframesubtitle\@empty%
+        \strut\par%
+      \else
+        \par{\usebeamerfont*{framesubtitle}{\usebeamercolor[fg]{framesubtitle}\insertframesubtitle}\strut\par}%
+      \fi%%
+%\tiny{Albert-Ludwigs-Universität Freiburg}\\\vspace{1pt}
+\end{beamercolorbox}%
+\put(-3.9,-19){
+\smash{%
+\hspace{-8.2pt}%
+\includegraphics[width=4em]{theme/Uni_Logo-blau-Wappen-li_E1_A4_CMYK}%
+}
+}
+}
+}
+
+\defbeamertemplate*{title page}{ALU}{
+\newdimen\beamer@temptitlepageboxwidthrest
+\beamer@temptitlepageboxwidthrest=1em
+%
+\newdimen\beamer@temptitlepageboxwidth
+\beamer@temptitlepageboxwidth=\paperwidth
+\addtolength{\beamer@temptitlepageboxwidth}{-\beamer@temptitlepageboxwidthrest}
+%
+\newdimen\beamer@tempspacer
+\beamer@tempspacer=0.9pt
+%
+\newdimen\beamer@tempbottomblockheight
+\beamer@tempbottomblockheight=0.3\paperheight
+\addtolength{\beamer@tempbottomblockheight}{-\beamer@tempspacer}
+% \vspace{-6.1em}%
+\hspace{-1.3em}\hbox{%
+\begin{beamercolorbox}[ht=0.7\paperheight,wd=\beamer@temptitlepageboxwidth,leftskip=2em]{title}%
+\vfill
+      \usebeamerfont{title}\inserttitle\par%
+      \ifx\insertsubtitle\@empty%
+      \else%
+        \vskip0.25em%
+        {\usebeamerfont{subtitle}\usebeamercolor[fg]{subtitle}\insertsubtitle\par}%
+      \fi%     
+\vspace{2em}
+\tiny{Albert-Ludwigs-Universität Freiburg}\vspace{1pt}
+\end{beamercolorbox}%
+\begin{beamercolorbox}[ht=0.7\paperheight,wd=\beamer@temptitlepageboxwidthrest]{background}%
+\vfill
+\end{beamercolorbox}%
+}%
+\\[\beamer@tempspacer]\vspace{0pt}%
+\hspace{-1.3em}\hbox{%
+\begin{beamercolorbox}[ht=\beamer@tempbottomblockheight,wd=\beamer@temptitlepageboxwidth,leftskip=2em]{frametitle bottomblock}%
+\vfill
+\newdimen\beamer@tempborderleftsep
+\beamer@tempborderleftsep=0pt
+\newdimen\beamer@tempborderleft
+\beamer@tempborderleft=2em
+% \addtolength{\beamer@tempborderleft}{-2\beamer@tempborderleftsep}
+\hspace{\beamer@tempborderleft}%
+\vbox{%
+\begin{beamercolorbox}[sep=\beamer@tempborderleftsep,left]{author}
+\usebeamerfont{author}\insertauthor
+\end{beamercolorbox}
+\begin{beamercolorbox}[sep=\beamer@tempborderleftsep,left]{institute}
+\usebeamerfont{institute}\insertinstitute
+\end{beamercolorbox}
+\begin{beamercolorbox}[sep=\beamer@tempborderleftsep,left]{date}
+\usebeamerfont{date}\insertdate
+\end{beamercolorbox}
+}%
+\vspace{2em}
+\end{beamercolorbox}%
+\begin{beamercolorbox}[ht=\beamer@tempbottomblockheight,wd=\beamer@temptitlepageboxwidthrest]{background}%
+\put(-27.19,70.74){
+\smash{%
+\hspace{-8.2pt}%
+% \rlap{%
+\includegraphics[width=5.5em]{theme/Uni_Logo-blau-Wappen-li_E1_A4_CMYK}%
+% }%
+% \vspace{5em}
+% }
+}
+}
+\vfill
+\end{beamercolorbox}%
+}%
+}
+
+
+
+
+
+
+
+\usebeamercolor[fg]{titlegraphic}\inserttitlegraphic
+
+
+
+% Margins
+\setbeamersize{text margin left=1em,text margin right=1em}
+% don't ask me why adding 2em to paperheight actually decreases the size, but it does
+\addtolength{\paperheight}{2em}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% STUFF
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\copyrightremarkALU}{Copyright 2009 by Christoph Hermann <hermann@informatik.uni-freiburg.de>}
+
+% \@latex@warning{\copyrightremarkALU}%^^J Zeilenumbruch
+\typeout{########################}
+\typeout{########################}
+\typeout{ALU beamer theme}
+\typeout{ }
+\typeout{\copyrightremarkALU}
+\typeout{########################}
+\typeout{########################}
+
+% \usepackage{theme/beamerouterthemeALU} % Footer
+% \usepackage[shadow=false]{theme/beamerinnerthemeALU} % inner theme
+% \usepackage{theme/beamercolorthemeALU} % colors of CD
+
+\mode
+<all>
+
+%%% Local Variables: 
+%%% TeX-master: "~/texmf/tex/latex/beamer/test/test.tex"
+%%% End: 
