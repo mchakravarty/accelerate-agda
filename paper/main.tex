@@ -33,7 +33,7 @@
 \begin{document}
 %
 \title{Agda Meets Accelerate}
-\subtitle{Extended Abstract}
+% \subtitle{Extended Abstract}
 \author{Peter Thiemann\inst{1} \and Manuel M. T. Chakravarty\inst{2}}
 \institute{
   University of Freiburg, Germany,\\
@@ -48,7 +48,11 @@ University of New South Wales, Sydney, Australia,\\
 \begin{abstract}  
   Embedded languages in Haskell benefit from a range of type extensions, such as type families, that are subsumed by dependent types. However, even with those type extensions, embedded languages for data parallel programming lack desirable static guarantees, such as static bounds checks in indexing and collective permutation operations.
   
-  This raises the question whether embedded languages for data parallel programming would benefit from fully-fledged dependent types, such as those available in Agda. We explored that question by designing and implementing an Agda frontend to Accelerate, an embedded language for data parallel programming aimed at GPUs. We discuss the potential of dependent types in this domain, describe some of the limitations that we encountered, and share some insights from our preliminary implementation.
+  This observation raises the question whether an embedded language
+  for data parallel programming would benefit from fully-fledged
+  dependent types, such as those available in Agda. We explored that
+  question by designing and implementing an Agda frontend to
+  Accelerate, a Haskell-embedded language for data parallel programming aimed at GPUs. We discuss the potential of dependent types in this domain, describe some of the limitations that we encountered, and share some insights from our preliminary implementation.
 \end{abstract}
 \keywords{programming with dependent types, data parallelism}
 \thispagestyle{plain}
@@ -59,11 +63,11 @@ University of New South Wales, Sydney, Australia,\\
 
 Generative approaches to programming parallel hardware promise to
 combine high-level programming models with high performance. They are
-particularly attractive for targeting restricted architectures, such
-as GPUs (graphics processor units), that cannot efficiently execute
-code aimed at conventional multicore CPUs. Instead, GPUs require a
+particularly attractive for targeting restricted architectures that cannot efficiently execute
+code aimed at conventional multicore CPUs. One prime example are GPUs
+(graphics processor units), which require a
 high degree of data parallelism, restricted control flow, and
-carefully tailored data access patterns to be efficient. Previous work
+custom tailored data access patterns to be efficient. Previous work
 ---for example, Accelerator~\cite{Tarditi:2006},
 Copperhead~\cite{Catanzaro:EECS-2010-124}, and
 Accelerate~\cite{ChakravartyKellerLeeMcdonellGrover2011}---
@@ -76,13 +80,14 @@ of the embedded language. For example, Accelerate, an embedded array
 language for Haskell, uses Haskell's recent support for type-level
 programming like GADTs and type families in that
 manner~\cite{ChakravartyKellerLeeMcdonellGrover2011}. This design
-choice is important for approaches relying on runtime code generation:
-compile-time faults in the embedded language should be avoided because
-it corresponds to at application runtime. Moreover, static guaranties
+choice is desirable for approaches relying on run-time code
+generation:
+each  potential fault at application run time should be discovered by
+a compile-time fault in the embedded language. Moreover, static guarantees
 hold the potential to improve the predictability of parallel
 performance. 
 
-Dependent types are an emerging approach to certified programming, where invariants are established in the form of types and proven at compile time. Many of Haskell's type-level extensions used in Accelerate approximate various aspects of dependently-typed programming. Hence, it it is natural to ask whether fully-fledged dependent types, such as those provided by Agda, improve the specification of an embedded language like Accelerate, whether they increase the scope of static guarantees, and whether they may be leveraged to predict performance more accurately.
+Dependent types are an emerging approach to certified programming, where invariants are established in the form of types and proven at compile time. Many of Haskell's type-level extensions used in Accelerate approximate aspects of dependently-typed programming. Hence, it is natural to ask whether fully-fledged dependent types, such as those provided by Agda, improve the specification of an embedded language like Accelerate, whether they increase the scope of static guarantees, and whether they may be leveraged to predict performance more accurately.
 
 This paper is a first investigation into this topic. It reports on a
 partial port of Accelerate to a new, dependently-typed host language,
@@ -95,8 +100,7 @@ Our investigation has the following structure. After recalling some
 background on Agda and Accelerate in Section~\ref{sec:background} and
 describing related work in Section~\ref{sec:related-work}, 
 Section~\ref{sec:dependent-types} discusses potential uses of
-dependent types in an array-oriented data parallel language like
-Accelerate and how they were realized in our
+dependent types in an array-oriented data parallel language and how they were realized in our
 implementation. Section~\ref{sec:limitations} considers conceptual 
 problems and limitations that we ran into when constructing the Agda
 frontend for Accelerate. Section~\ref{sec:implementation} explains
@@ -161,7 +165,7 @@ an element of the vector.
 \begin{verbatim}
 get : {A : Set} {n : Nat} -> Vec A n -> (m : Nat) -> m < n -> A
 get []        _       ()      -- impossible case
-get (x :: xs) zero    p       = x
+get (x :: xs) zero    z<s     = x
 get (x :: xs) (suc m) (s<s p) = get xs m p
 \end{verbatim}
 This code cannot fail at run time because a caller has to
@@ -191,7 +195,8 @@ CUDA.run :: Arrays a => Acc a -> a
 %
 The type class constraint \verb+Arrays a+ restricts the result type to a single array or a tuple of arrays.
 
-As computation representations of type \verb+Acc a+ are compiled at application runtime, all \verb+Acc+ compilation errors are effectivly \emph{runtime errors} of the application. Hence, Accelerate uses a range of Haskell type system extensions to statically type Accelerate expressions, such that these runtime errors are avoided where possible. In particular, Accelerate uses GADTs\cite{PeytonJonesVytiniotisWeirichWashburn2006}, associated types
+As computation representations of type \verb+Acc a+ are compiled at
+application run time, all \verb+Acc+ compilation errors are effectively \emph{run-time errors} of the application. Hence, Accelerate uses a range of Haskell type system extensions to statically type Accelerate expressions, such that these run-time errors are avoided where possible. In particular, Accelerate uses GADTs\cite{PeytonJonesVytiniotisWeirichWashburn2006}, associated types
 \cite{ChakravartyKellerJones2005}, and type families
 \cite{SchrijversPeytonJonesChakravartySulzmann2008}. 
 
@@ -199,18 +204,22 @@ As a simple example of an Accelerate program, consider a function implementing a
 %
 \begin{hcode}
 dotp :: Vector Float -> Vector Float -> Acc (Scalar Float)
-dotp xs ys = let xs' = use xs
-                 ys' = use ys
+dotp xs ys = let { xs' = use xs; ys' = use ys }
              in  fold (+) 0 (zipWith (*) xs' ys')
 \end{hcode}
 %
 The types \verb+Vector+ and \verb+Scalar+ represent one- and zero-dimensional
 arrays. Plain arrays, such as \verb+Vector Float+ are conventional Haskell arrays, using an unboxed representation to improve performance. However, when they are wrapped into the constructor \verb+Acc+, such as in \verb+Acc (Scalar Float)+, they represent arrays of the embedded language and are allocated in GPU memory, which in current high-performance GPUs is physically separate from CPU memory.
 
-The \verb+use+ operation makes a Haskell array available in the embedded language by wrapping it into the \verb+Acc+ constructor and copying it to GPU memory.\footnote{Accelerate employs a caching strategy to avoid the transfer of arrays, which are already available in GPU memory.} The operations \texttt{fold} and \texttt{zipWith} represent collective operations on Accelerate arrays, effectively producing a representation of an array computation yielding a value of
-\texttt{Scalar Float}; i.e., a single float value. This code relies
-heavily on (type class) overloading: \texttt{0}, \texttt{(+)}, and
-\texttt{(*)} are overloaded to just construct abstract syntax. 
+The \verb+use+ operation makes a Haskell array available in the
+embedded language by wrapping it into the \verb+Acc+ constructor. It
+amounts to copying it to GPU memory.\footnote{Accelerate employs a
+  caching strategy to avoid the transfer of arrays, which are already
+  available in GPU memory.} The operations \texttt{fold} and
+\texttt{zipWith} represent collective operations on Accelerate arrays,
+effectively producing a representation of an array computation
+yielding  a single float value (\texttt{Scalar Float}). The code relies on (type class) overloading: \texttt{0}, \texttt{(+)}, and
+\texttt{(*)} are overloaded to construct abstract syntax. 
 
 The types \verb+Scalar+ and \verb+Vector+ are type synonyms instantiating a shape-parameterised array type to the special case of zero and one dimensional arrays:
 %
@@ -225,7 +234,7 @@ The general type for \verb+use+ is
 use :: Elt e => Array sh e -> Acc (Array sh e)
 \end{hcode}
 %
-where the class \verb+Elt+ characterises all types that may be held in Accelerate arrays. These are currently primitive types and tuples.
+where the class \verb+Elt+ characterizes all types that may be held in Accelerate arrays. These are currently primitive types and tuples.
 
 Common dimensions, such as \verb+DIM0+, \verb+DIM1+, and so on, are
 predefined, but to enable shape polymorphic computations, along the
@@ -243,19 +252,22 @@ Hence, the definitions of the dimensions:
 \begin{hcode}
 type DIM0 = Z
 type DIM1 = DIM0 :. Int
--- <and so on>
+-- and so on
 \end{hcode}
 
 \section{Related Work}
 \label{sec:related-work}
 
-Peebles formalised parts of the API of the Haskell array library Repa using Agda~\cite{peebles:derpa}. The formalisation uses the same shape structure as we are using in Accelerate, but array computations are neither embedded nor can parallel high-performance code be generated.
+Peebles formalized parts of the API of the Haskell array library Repa
+using Agda~\cite{peebles:derpa}. The formalisation relies on the same
+shape structure as Accelerate, but array computations are neither
+embedded nor can parallel high-performance code be generated. 
 
 Swierstra and Altenkirch investigated the use of dependent types for \emph{distributed} array programming~\cite{swierstra-altenkirch:dep-types-for-distr-arrays,swierstra:more-dependent-types}. Their notation for distributed arrays was inspired by X10 and the main focus is on expressing locality aware algorithms.
 
-Dependent ML is an ML dialect with a restricted form of dependent types, which, among other applications, may be used to statically check array bounds in array operations~\cite{xi:dml-jfp}. However, only simple indexing and array updating are considered and not aggregate array operations, such as those provided by Accelerate.
+Dependent ML is an ML dialect with a restricted form of dependent types, which, among other applications, may be used to statically check array bounds~\cite{xi:dml-jfp}. However, only simple indexing and array updating are considered and not aggregate array operations, such as those provided by Accelerate.
 
-Accelerator~\cite{Tarditi:2006} enables embedded GPU computations in C\# programs; it subsequently also added F\# support. However, no attempt is made to track properties of array programs statically. Similarly, Copperhead~\cite{Catanzaro:EECS-2010-124} embedded an array language into Python, but does not attempt to track information statically.
+Accelerator~\cite{Tarditi:2006} enables embedded GPU computations in C\# programs; it subsequently also added F\# support. However, no attempt is made to track properties of array programs statically. Similarly, Copperhead~\cite{Catanzaro:EECS-2010-124} embeds an array language into Python, but does not attempt to track information statically.
 
 \section{Dependent Types for Accelerate}
 \label{sec:dependent-types}
@@ -271,53 +283,51 @@ embedding.
 Accelerate supports a wide range of numeric types, characterized by
 type class \texttt{Elt}, as base types for
 array computations. Almost all of these types have no suitable
-counterpart in Agda, which only supports natural numbers in unary
-encoding. For that reason, our embedding keeps the Haskell types
-abstract in Agda. To specify type signatures and in particular
-functions that are polymorphic in such a Haskell type or depend on it
-in some way, we have reified these types in an Agda type
-\texttt{Element}.
+counterpart in Agda, which only supplies  computationally expensive
+encodings for natural and rational numbers. For that reason, our embedding keeps the Haskell types 
+abstract in Agda. To specify the types of functions that are polymorphic in such a Haskell type or depend on it
+in some way, we have reified the possible element types in an Agda type
+\texttt{Elt}.
 \begin{verbatim}
-data Element : Set where
-  Bool   : Element
-  Int    : Element
-  Float  : Element
-  Double : Element
-  Pair   : Element -> Element -> Element
+data Elt : Set where
+  Bool   : Elt
+  Int    : Elt
+  Float  : Elt
+  Double : Elt
+  Pair   : Elt -> Elt -> Elt
   -- and so on
 \end{verbatim}
 Corresponding to Haskell type classes that are used in Accelerate, our
 embedding supplies predicates that characterize subsets. For example,
 the set of numeric types is defined by a predicate
-\texttt{IsNumeric}.\footnote{$\top$ is a one-element type,
+\texttt{Numeric}.\footnote{$\top$ is a one-element type,
   whereas $\bot$ is a type without elements. These types customarily
   represent truth and falsity.}
 \begin{alltt}
-IsNumeric : Element -> Set
-IsNumeric Int = \(\top\)
-IsNumeric Float = \(\top\)
-IsNumeric Double = \(\top\)
-IsNumeric _ = \(\bot\)
+Numeric : Elt -> Set
+Numeric Int = \(\top\)
+Numeric Float = \(\top\)
+Numeric Double = \(\top\)
+Numeric _ = \(\bot\)
 \end{alltt}
 The embedding declares further subsets all in the same style.
 
 \subsection{Array Types}
 \label{sec:array-types}
 
-To see the Agda embedding in action, we translate the
+To demonstrate the Agda embedding in action, we translate the
 dot product example from Section~\ref{sec:accelerate} to Agda.
 \begin{code}
-dotp : forall {E : Element} {{p : IsNumeric E}} {n : Nat}
+dotp : forall {E : Elt} {{p : Numeric E}} {n : Nat}
      -> PreVector n E -> PreVector n E -> Scalar E
 dotp{E} xs ys = 
   let xs' = use xs
       ys' = use ys
-  in
-  fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
+  in  fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
 \end{code}
 Unlike the Accelerate code, this function is polymorphic with respect
 to the array element type, provided it is numeric.\footnote{In Agda, arguments in double curly braces are \emph{instance arguments}~\cite{DevriesePiessens2011}. We use them much like type class constraints are used in Haskell.} It furthermore
-takes the length $n$ as a parameter thus ensuring that the two input
+takes the length $n$ as an implicit parameter thus ensuring that the two input
 vectors have the same size. The \texttt{PreVector} type of the
 arguments corresponds to the plain \texttt{Vector} type in Accelerate,
 whereas the result type \texttt{Scalar E} corresponds to \texttt{Acc
@@ -326,7 +336,7 @@ whereas the result type \texttt{Scalar E} corresponds to \texttt{Acc
 The \texttt{use} function works as before, but its type
 includes more information:
 \begin{code}
-use : {sh : Shape}{E : Element} -> PreArray sh E -> Array sh E
+use : {sh : Shape}{E : Elt} -> PreArray sh E -> Array sh E
 \end{code}
 Like \texttt{E}, the index \texttt{sh} is now an element of an
 ordinary type instead of having to rely on type-level snoc
@@ -349,12 +359,12 @@ The functions \texttt{fold}, \texttt{zipWith}, and \texttt{:::} are
 discussed in the subsequent subsections. The functions \verb|_+_| and
 \verb|_*_| both have the same type:
 \begin{code}
-_+_ : {E : Element} {{p : IsNumeric E}} -> Exp E -> Exp E -> Exp E
+_+_ _*_ : {E : Elt} {{p : Numeric E}} -> Exp E -> Exp E -> Exp E
 \end{code}
 They are restricted to arguments of numeric type and construct
 abstract syntax for an addition or a multiplication by delegating to
-the corresponding Accelerate functions. The type \texttt{Exp E},
-which denotes an AST of an expression of type \texttt{E}.
+the corresponding Accelerate functions. The type \texttt{Exp E}
+denotes an AST of an expression of type \texttt{E}. 
 
 
 
@@ -364,8 +374,9 @@ which denotes an AST of an expression of type \texttt{E}.
 Accelerate's API features expressive type constraints that describe
 the shape of the array arguments and results. These constraints ensure
 that no shape mismatches occur (e.g., a one-dimensional array cannot be
-considered two-dimensional). However, they do not ensure at compile
-time that the sizes of the dimensions match up.
+considered two-dimensional), but they do not ensure at compile
+time that the sizes of the dimensions match up. Such a mismatch
+results in a run-time error.
 
 As an example, consider the function \texttt{reshape}. 
 It takes a target shape \texttt{sh} and an array of source shape
@@ -392,7 +403,7 @@ Now we can state an accurate type for \texttt{reshape} in Agda, which
 involves an extra argument with a proof that the source and
 target shapes have the same size.
 \begin{alltt}
-reshape : \{sh : Shape\} \{E : Element\}
+reshape : \{sh : Shape\} \{E : Elt\}
        -> (sh' : Shape) -> Array sh E -> (size sh \(\equiv\) size sh')
        -> Array sh' E
 \end{alltt}
@@ -414,12 +425,12 @@ identical shapes:
 zipWith : {A B C} {sh} -> (Exp A -> Exp B -> Exp C)
         -> Array sh A -> Array sh B -> Array sh C
 \end{verbatim}
-The latter type is more restrictive than the Accelerate
-implementation of \texttt{zipWith}. Instead of checking the sizes
-of the input arrays, it truncates them to the respective minima. A
-corresponding Agda type could be developed easily. It just requires a
-binary function that computes the minimum of two shapes, which is a
-simple exercise.
+The latter type is more restrictive than the Accelerate implementation
+of \texttt{zipWith}. Instead of checking the sizes of the input
+arrays, it truncates them to the respective minima. We also developed
+an Agda type that directly corresponds to this implementation. It
+requires a binary function that computes the minimum of two shapes,
+which we leave as an exercise to the reader.
 
 \subsection{Associativity of Operations}
 \label{sec:assoc-oper}
@@ -436,7 +447,7 @@ fold1 :: (Shape ix, Elt a) =>
          Acc (Array (ix :. Int) a) -> Acc (Array ix a)
 \end{hcode}
 In both cases, the text of the documentation says that ``the first
-argument needs to be associative'' and the \texttt{fold1}
+argument needs to be associative'' and furthermore the \texttt{fold1}
 documentation ``requires the reduced array to be non-empty''.
 The second requirement can be enforced by asking for a suitable proof
 object on each call of \texttt{fold1}:
@@ -461,14 +472,27 @@ functions, so that proofs can only be done for special cases.
 In any case, providing such information would be done by including an
 additional argument that holds a suitable proof object, as in
 \begin{verbatim}
-fold : forall {E}{sh}{n} -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E)
+fold : forall {E}{sh}{n}
+     -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E)
      -> Array (sh :< n >) E -> IsMonoid f e -> Array sh E
 \end{verbatim}
 where
 \begin{verbatim}
-IsMonoid : forall {E} -> (f : Exp E -> Exp E -> Exp E) -> (e : Exp E) -> Set
+IsMonoid : forall {E} -> (Exp E -> Exp E -> Exp E) -> Exp E -> Set
 IsMonoid f e = ( IsAssociative f , IsUnit f e)
 \end{verbatim}
+
+Some readers may object that neither addition nor multiplication of
+floating point numbers is associative
+\cite{DBLP:journals/csur/Goldberg91}. However, for advanced
+optimizations, the exploitation of algebraic laws is a necessity and
+the involved degradation of precision or change of result is accepted
+or account for in the error estimates. Moreover, there are
+other operations, like min or max, that are commonly used with
+\texttt{fold}-like operations, which are truly associative. Last, but
+not least, the associativity declarations serve as an important
+documentation that passing an inherently non-associative function will
+produce unpredictable, implementation-dependent results.
 
 \subsection{Embedding of Constants}
 \label{sec:embedding-constants}
@@ -487,7 +511,7 @@ type classes that define \texttt{fromInteger} and
 \texttt{fromRational} to produce suitable AST fragments.
 
 Because of Agda's limited support for numeric data types,
-we embed more ambitious numeric literals for floating point numbers
+we embed numeric literals for integers and floating point numbers
 using a string with an explicit type annotation that determines the
 parsing of the string. Here are some example embeddings:
 \begin{verbatim}
@@ -495,23 +519,23 @@ parsing of the string. Here are some example embeddings:
 "6.0221415E23" ::: Double
 \end{verbatim}
 Recall that \texttt{Float} and \texttt{Double} are not
-types, but rather values of type \texttt{Element}.
-All magic of the embedding is hidden in the \texttt{:::} operation:
+types, but rather values of type \texttt{Elt}.
+The \texttt{:::} operation is the workhorse of the embedding:
 \begin{verbatim}
-_:::_ : (s : String) -> (E : Element) 
-     -> {{nu : IsNumeric E}} -> {p : T (s parsesAs E)} -> Exp E
+_:::_ : (s : String) -> (E : Elt) 
+     -> {{nu : Numeric E}} -> {p : T (s parsesAs E)} -> Exp E
 s ::: E = Ex (constantFromString (EltDict E) (ReadDict E) s)
 \end{verbatim}
 The arguments \texttt{s} and \texttt{E} are explicit, but the
-remaining ones are to be inferred by Agda.
+remaining ones are inferred by Agda.
 As mentioned before, the argument \texttt{nu} is an instance argument; it is automatically
 filled-in with a suitably typed value that is currently in scope
 \cite{DevriesePiessens2011}. Here, the predicate 
-\texttt{IsNumeric} plays the role of a type class that characterizes
+\texttt{Numeric} plays the role of a type class that characterizes
 the numeric types.
 
 The function \texttt{parsesAs} dispatches on its ``type'' argument and
-checks whether the string is a constant of the expected type. The
+parses the string to check whether it is an acceptable literal of the expected type. The
 function \texttt{constantFromString} is imported from Accelerate.
 It is an overloaded function that requires two type dictionaries,
 which are computed from \texttt{E} using the functions \texttt{EltDict}
@@ -522,8 +546,8 @@ and \texttt{ReadDict}.
 
 In a number of places, Accelerate's generativity limits the
 applicability of dependent typing. We already mentioned that the
-formalization of associativity or of the concept of a monoid gets
-unmanageable because such properties have to be asserted for abstract syntax.
+formalization of associativity or of the concept of a monoid cannot be
+verified in Agda because such properties have to be asserted for abstract syntax.
 
 For a related problem, consider an implementation of the \texttt{filter}
 operation that takes a predicate and a source array and returns an
@@ -532,21 +556,26 @@ the predicate.  First of all, filtering only makes sense for
 one-dimensional arrays, that is, for vectors. To see the second catch,
 let's try to write down a dependent type signature for \texttt{filter}.
 \begin{verbatim}
-filter : forall {n m : Nat}{E : Element}
+filter : forall {n m : Nat}{E : Elt}
        -> Vector n E -> (Exp E -> Exp Bool) -> Vector m E
 \end{verbatim}
 The problem is that the size of the result
-cannot be determined statically. In fact, the only thing we know about
-\texttt{m} is that it must be less than or equal to
-\texttt{n}. However, we cannot prove this from the code because of a staging restriction. The Accelerate implementation computes the length of the result only when the generated GPU code is executed. The function \texttt{Exp E -> Exp Bool} maps abstract syntax to abstract syntax; it does not directly implement a Boolean predicate. Hence, we cannot use the predicate in the result type of \texttt{filter} to more accurately constrain the size of the resulting vector --- unless we include an evaluator for Accelerate expressions. 
+cannot be determined statically. In fact, the only thing that we could
+prove from an implementation of \texttt{filter} is that
+\texttt{m} must be less than or equal to \texttt{n}.
+However, we cannot even prove this restriction on \texttt{m} for two
+reasons. First, the code of \texttt{filter} is not available as even
+the underlying Haskell library only deals with abstract
+syntax. Second, even if the code were available, there is still a
+problem due to staging. The Accelerate implementation computes the length of the result only when the generated GPU code is executed. The function \texttt{Exp E -> Exp Bool} maps abstract syntax to abstract syntax; it does not directly implement a Boolean predicate. Hence, we cannot use the predicate in the result type of \texttt{filter} to more accurately constrain the size of the resulting vector --- unless we include an evaluator for Accelerate expressions. 
 
-We might contemplate emplying an existential type like
+We might contemplate employing an existential type like
 \begin{verbatim}
 exists Nat (\ m -> m <= n -> Vector m E)
 \end{verbatim}
-However, it is not possible to build such an
+but it is not possible to build such an
 existential package because the evidence \texttt{m} is not available
-when the package would have to be constructed.
+when the existential package has to be constructed.
 
 However, an alternative encoding of arrays can be
 used which is compatible with filtering of elements. The idea of this
@@ -554,19 +583,19 @@ encoding is to keep all elements but mark those which are no longer
 present because they have been filtered out.
 There are several ways of implementing this idea. The simplest
 approach is to pair up each element with a boolean flag that indicates
-its presence.\footnote{The \texttt{Maybe} type is not an option
+its presence.\footnote{Using an array of \texttt{Maybe}-typed elements is not an option
   because Accelerate does not support \texttt{Maybe} types as array elements.}
 \begin{verbatim}
-FVector : Nat -> Element -> Set
+FVector : Nat -> Elt -> Set
 FVector n E = Vector n (Pair Bool E)
 \end{verbatim}
 
-Now filtering becomes quite simple because the length of
-the\texttt{FVector} does not change. Furthermore, filtering could be
+In this encoding, filtering is quite simple because the length of
+the \texttt{FVector} does not change. Furthermore, filtering could be
 extended to multi-dimensional arrays, although it is not clear if an
-array that includes non-existing elements is a sensible notion.
+array that contains non-existing elements or holes is a sensible notion.
 \begin{verbatim}
-filterF : forall {n : Nat}{E : Element}
+filterF : forall {n : Nat}{E : Elt}
         -> (Exp E -> Exp Bool) -> FVector n E -> FVector n E
 filterF {n}{E} pred vec =
   map g vec
@@ -574,12 +603,12 @@ filterF {n}{E} pred vec =
   g : Exp (Pair Bool E) -> Exp (Pair Bool E)
   g bx = pair ((fst bx) && p (snd bx)) x
 \end{verbatim}
-However, mapping becomes more complicated because it either has to
+The mapping operation that applies a function to each element of an
+array becomes more complicated because it either has to 
 materialize a dummy result for each absent element in the argument
-vector or apply the function to absent elements, too.\footnote{This
-  complication could be avoided with the \texttt{Maybe} type.}
+vector or apply the function to absent elements, too.
 \begin{verbatim}
-mapF : forall {n : Nat}{E F : Element}
+mapF : forall {n : Nat}{E F : Elt}
      -> Exp F -> (Exp E -> Exp F) -> FVector n E -> FVector n F
 mapF {n}{E}{F} defaultF f vec =
   map g vec
@@ -593,7 +622,7 @@ elements. In particular, a fold operation which reduces a filtered
 vector with a monoid returns a single value. In Accelerate, such a value has type
 \texttt{Scalar}, which is a synonym for an array of dimension $0$.
 \begin{verbatim}
-foldF : forall {n : Nat}{E : Element}
+foldF : forall {n : Nat}{E : Elt}
       -> (Exp E -> Exp E -> Exp E) -> Exp E
       -> FVector n E -> Scalar E
 foldF f e vec =
@@ -604,12 +633,14 @@ in Accelerate can also be lifted to this representation, but they
 retain a notion of absent elements and do not allow to revert to a
 non-filtered representation. 
 
-In the end, such a representation may not be a loss on a GPU. As long
+In the end, such a representation may not even lead to reduced efficiency on a GPU. As long
 as all computations take the same path, all processing elements work
 in unison. As soon as there are different paths in the same
 computation step, then some elements will be idle for part of the
 computation step. So it would be most advantageous to organize work as
-uniformly as possible. 
+uniformly as possible by reorganizing the array so that the present
+and the absent elements are grouped together. A segmented array might
+be a suitable representation.
 
 
 \section{Implementation}
@@ -649,7 +680,7 @@ one-dimensional arrays. Additional arguments are passed to encode the
 shape information as far as it is needed. The Agda adapter provides
 the encoding of this structure and the Haskell adapter decodes it again. 
 
-We believe that these adapations only have a minor performance impact
+We believe that these adaptations only have a minor performance impact
 because (1) most functions just manipulate abstract syntax, so that
 only AST construction is affected, and (2) internally, Accelerate
 considers all arrays as one-dimensional so that operations like
@@ -657,33 +688,33 @@ considers all arrays as one-dimensional so that operations like
 
 Here is the Agda adapter for \texttt{use}:
 \begin{verbatim}
-use : forall {sh : Shape}{E : Element} -> PreArray sh E -> Array sh E
+use : forall {sh : Shape}{E : Elt} -> PreArray sh E -> Array sh E
 use {sh}{E} (PA y) = Ar (useHs (EltDict E) y)
 \end{verbatim}
 It makes use of two wrapper types. \texttt{PreArray} wraps a
 one-dimensional Haskell array using the constant \texttt{HsDIM1} (the
 \texttt{DIM1} type shown in Section~\ref{sec:accelerate} imported from
 Haskell via FFI) and the function \texttt{EltType} (not shown), which
-interprets a value of type \texttt{Element} as a Haskell type. The
+interprets a value of type \texttt{Elt} as a Haskell type. The
 latter types are also imported via FFI.
 \begin{code}
-data PreArray (E : Element) : Shape -> Set where
+data PreArray (E : Elt) : Shape -> Set where
   PA : {sh : Shape} -> HsArray HsDIM1 (EltType E) -> PreArray sh E
 \end{code}
 The \texttt{Array} type wraps an AST reference for an Accelerate
 array, where \texttt{Acc} and \texttt{AccArray} are types imported
 from Haskell.
 \begin{code}
-data Array (E : Element) : Shape -> Set where
+data Array (E : Elt) : Shape -> Set where
   Ar : {sh : Shape} -> Acc (AccArray HsDIM1 (EltType E)) -> Array sh E
 \end{code}
 The \texttt{EltDict} function translates a value 
-\texttt{(E : Element)} into a Haskell expression that evaluates to a
+\texttt{(E : Elt)} into a Haskell expression that evaluates to a
 dictionary for the Haskell type of \texttt{E} for the Haskell type
-class \texttt{Elt}. Such a dictionary is passed, whenever that
+class \texttt{Elt}. Such a dictionary is passed, whenever the
 corresponding Haskell function has type class constraints.
 \begin{code}
-EltDict : (E : Element) -> HsEltDict (EltType E)
+EltDict : (E : Elt) -> HsEltDict (EltType E)
 \end{code}
 
 The Haskell side of the adapter has several purposes. First, it
@@ -800,15 +831,15 @@ a number of places, Accelerate accepts a run-time value of type
 \texttt{Exp sh} for a shape argument, where the Agda frontend requires
 a value of type \texttt{Shape}. To address this problem, we would have
 to include a \texttt{Shape}-indexed encoding of the \texttt{Shape}
-type in the \texttt{Element} type so that we can describe the type of
+type in the \texttt{Elt} type so that we can describe the type of
 an expression whose value has a certain shape. 
 
 Finally, the type translation of Agda's FFI has many shortcomings that
-caused a number of problems for transporting information between Agda
+cause a number of problems when transporting information between Agda
 and Haskell. One part of the problem is, unfortunately, the rich type
-structure of Accelerate which already encodes much useful
-information. An alternative, untyped (or less-typed) interface to
-Accelerate would make the adaptation to an Agda frontend much simpler.
+structure of Accelerate's API which already encodes many useful
+constraints. An alternative, untyped (or less-typed) interface to
+Accelerate would make the adaptation to an Agda frontend simpler.
 
 %
 % ---- Bibliography ----
