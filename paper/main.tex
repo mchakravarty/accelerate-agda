@@ -94,9 +94,15 @@ partial port of Accelerate to a new, dependently-typed host language,
 Agda \cite{Norell2008,BoveDybjerNorell2009}. Agda is particularly
 suited to this port because of its foreign function interface to
 Haskell, which enables it to directly invoke the functionality of
-Accelerate. 
-
-Our investigation has the following structure. After recalling some
+Accelerate. The main contributions of this paper are the following:
+%
+\begin{itemize}
+\item We identify and discuss the challenges of combining generative embedded languages with dependent typing (Section~\ref{sec:dependent-types}).
+\item We propose predicated arrays to overcome some of these challenges (Section~\ref{sec:limitations}).
+\item We outline an implementation of the main parts of Accelerate in Agda using the Agda-Haskell FFI for code execution (Section~\ref{sec:implementation}).
+\end{itemize}
+%
+Overall, our investigation has the following structure. After recalling some
 background on Agda and Accelerate in Section~\ref{sec:background} and
 describing related work in Section~\ref{sec:related-work}, 
 Section~\ref{sec:dependent-types} discusses potential uses of
@@ -170,9 +176,9 @@ get (x :: xs) (suc m) (s<s p) = get xs m p
 \end{verbatim}
 This code cannot fail at run time because a caller has to
 construct the proof tree for \verb+m < n+ before invoking
-\verb+get+. (In Agda, arguments in curly braces are \emph{implicit
+\verb+get+. Thus, an ``index out of bounds'' error cannot happen. 
+(In Agda, arguments in curly braces are \emph{implicit
   arguments} that will be inferred if omitted in an application.)
-Thus, an ``index out of bounds'' error cannot happen.
 
 \subsection{Accelerate}
 \label{sec:accelerate}
@@ -184,7 +190,7 @@ operations are not executed directly, but instead construct abstract
 syntax trees (AST) representing an entire data-parallel
 subcomputation. These \emph{computation representations} are executed
 using a \verb+run+ operation that accepts such a representation (of type
-\verb+Acc a+), compiles it to GPU kernels, uploads it to the device,
+\verb+Acc a+), compiles it to GPU kernels, uploads it to a device,
 executes it, and retrieves the results.\footnote{To distinguish
   Haskell code from Agda code, we display Haskell code in blue and with
   a vertical bar on the left side.}
@@ -281,13 +287,13 @@ embedding.
 \label{sec:embedding-types}
 
 Accelerate supports a wide range of numeric types, characterized by
-type class \texttt{Elt}, as base types for
-array computations. Almost all of these types have no suitable
+the type class \texttt{Elt}, as base types for
+array computations. Almost all of these types lack a suitable
 counterpart in Agda, which only supplies  computationally expensive
 encodings for natural and rational numbers. For that reason, our embedding keeps the Haskell types 
 abstract in Agda. To specify the types of functions that are polymorphic in such a Haskell type or depend on it
-in some way, we have reified the possible element types in an Agda type
-\texttt{Elt}.
+in some way, we have reified the possible element types as an Agda type
+\texttt{Elt}:
 \begin{verbatim}
 data Elt : Set where
   Bool   : Elt
@@ -300,7 +306,7 @@ data Elt : Set where
 Corresponding to Haskell type classes that are used in Accelerate, our
 embedding supplies predicates that characterize subsets. For example,
 the set of numeric types is defined by a predicate
-\texttt{Numeric}.\footnote{$\top$ is a one-element type,
+\texttt{Numeric}:\footnote{$\top$ is a one-element type,
   whereas $\bot$ is a type without elements. These types customarily
   represent truth and falsity.}
 \begin{alltt}
@@ -497,7 +503,6 @@ produce unpredictable, implementation-dependent results.
 \subsection{Embedding of Constants}
 \label{sec:embedding-constants}
 
-
 Accelerate relies on Haskell's built-in support for the type classes
 \texttt{Num} and \texttt{Fractional} to embed constants. The Haskell
 compiler reads each integer literal as a value of type
@@ -583,7 +588,7 @@ encoding is to keep all elements but mark those which are no longer
 present because they have been filtered out.
 There are several ways of implementing this idea. The simplest
 approach is to pair up each element with a boolean flag that indicates
-its presence.\footnote{Using an array of \texttt{Maybe}-typed elements is not an option
+its presence, which we call \emph{predicated arrays}:\footnote{Using an array of \texttt{Maybe}-typed elements is not an option
   because Accelerate does not support \texttt{Maybe} types as array elements.}
 \begin{verbatim}
 FVector : Nat -> Elt -> Set
@@ -606,7 +611,7 @@ filterF {n}{E} pred vec =
 The mapping operation that applies a function to each element of an
 array becomes more complicated because it either has to 
 materialize a dummy result for each absent element in the argument
-vector or apply the function to absent elements, too.
+vector or apply the function to absent elements, too. This makes \texttt{filter} reminiscent of the \texttt{where} statement of the SIMD language C$^*$~\cite{rose-etal:c-star}.
 \begin{verbatim}
 mapF : forall {n : Nat}{E F : Elt}
      -> Exp F -> (Exp E -> Exp F) -> FVector n E -> FVector n F
@@ -746,7 +751,7 @@ eltDictInt :: EltDict Int
 eltDictInt = EltDict
 \end{hcode}
 
-As an example for a function that requires more work on either side,
+As an example for a function that requires more work on both sides,
 consider the \texttt{fold} operation. 
 \begin{code}
 fold : forall {E}{sh}{n}
