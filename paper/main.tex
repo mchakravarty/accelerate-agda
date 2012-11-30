@@ -113,6 +113,9 @@ frontend for Accelerate. Section~\ref{sec:implementation} explains
 some technical details of the implementation and discusses some
 example code. 
 
+\noindent
+Source code is available at \url{https://github.com/mchakravarty/accelerate-agda}.
+
 \section{Background}
 \label{sec:background}
 
@@ -839,8 +842,8 @@ to include a \texttt{Shape}-indexed encoding of the \texttt{Shape}
 type in the \texttt{Elt} type so that we can describe the type of
 an expression whose value has a certain shape. 
 
-Finally, the type translation of Agda's FFI has many shortcomings that
-cause a number of problems when transporting information between Agda
+Finally, the type translation of Agda's FFI has a number of shortcomings that
+cause problems when transporting information between Agda
 and Haskell. One part of the problem is, unfortunately, the rich type
 structure of Accelerate's API which already encodes many useful
 constraints. An alternative, untyped (or less-typed) interface to
