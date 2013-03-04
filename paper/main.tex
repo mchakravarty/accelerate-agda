@@ -27,7 +27,7 @@
 \usepackage{fancyvrb}
 
 \DefineVerbatimEnvironment{code}{Verbatim}{} % Add fancy options here if you like.
-\DefineVerbatimEnvironment{hcode}{Verbatim}{formatcom=\color{blue},frame=leftline} % Add fancy options here if you like.
+\DefineVerbatimEnvironment{hcode}{Verbatim}{formatcom=\color{blue},frame=single} % Add fancy options here if you like.
 
 
 \begin{document}
@@ -87,7 +87,15 @@ a compile-time fault in the embedded language. Moreover, static guarantees
 hold the potential to improve the predictability of parallel
 performance. 
 
-Dependent types are an emerging approach to certified programming, where invariants are established in the form of types and proven at compile time. Many of Haskell's type-level extensions used in Accelerate approximate aspects of dependently-typed programming. Hence, it is natural to ask whether fully-fledged dependent types, such as those provided by Agda, improve the specification of an embedded language like Accelerate, whether they increase the scope of static guarantees, and whether they may be leveraged to predict performance more accurately.
+Dependent types \cite{MartinLoef1984} are an established approach to certified programming,
+where invariants are established in the form of types and proven at
+compile time. Many of Haskell's type-level extensions used in
+Accelerate approximate aspects of dependently-typed
+programming. Hence, it is natural to ask whether fully-fledged
+dependent types, such as those provided by Agda, improve the
+specification of an embedded language like Accelerate, whether they
+increase the scope of static guarantees, and whether they may be
+leveraged to predict performance more accurately. 
 
 This paper is a first investigation into this topic. It reports on a
 partial port of Accelerate to a new, dependently-typed host language,
@@ -187,16 +195,15 @@ construct the proof tree for \verb+m < n+ before invoking
 \label{sec:accelerate}
 
 Accelerate~\cite{ChakravartyKellerLeeMcdonellGrover2011} is a
-data-parallel array language embedded into Haskell, which targets
-GPUs. It is a \emph{generative library}, as its data-parallel array
-operations are not executed directly, but instead construct abstract
+\emph{generative} data-parallel array language embedded into Haskell, which targets
+GPUs. Being generative, its data-parallel array
+operations are not executed directly. Instead, Accelerate constructs abstract
 syntax trees (AST) representing an entire data-parallel
 subcomputation. These \emph{computation representations} are executed
 using a \verb+run+ operation that accepts such a representation (of type
 \verb+Acc a+), compiles it to GPU kernels, uploads it to a device,
 executes it, and retrieves the results.\footnote{To distinguish
-  Haskell code from Agda code, we display Haskell code in blue and with
-  a vertical bar on the left side.}
+  Haskell code from Agda code, we display Haskell code in a blue box.}
 %
 \begin{hcode}
 CUDA.run :: Arrays a => Acc a -> a
@@ -222,8 +229,8 @@ arrays. Plain arrays, such as \verb+Vector Float+ are conventional Haskell array
 
 The \verb+use+ operation makes a Haskell array available in the
 embedded language by wrapping it into the \verb+Acc+ constructor. It
-amounts to copying it to GPU memory.\footnote{Accelerate employs a
-  caching strategy to avoid the transfer of arrays, which are already
+amounts to copying it to GPU memory.\footnote{Accelerate employs
+  caching to avoid the transfer of arrays that are already
   available in GPU memory.} The operations \texttt{fold} and
 \texttt{zipWith} represent collective operations on Accelerate arrays,
 effectively producing a representation of an array computation
@@ -267,12 +274,16 @@ type DIM1 = DIM0 :. Int
 \section{Related Work}
 \label{sec:related-work}
 
-Peebles formalized parts of the API of the Haskell array library Repa
+Peebles formalizes parts of the Repa API % of the Haskell array library Repa
 using Agda~\cite{peebles:derpa}. The formalisation relies on the same
 shape structure as Accelerate, but array computations are neither
 embedded nor can parallel high-performance code be generated. 
 
-Swierstra and Altenkirch investigated the use of dependent types for \emph{distributed} array programming~\cite{swierstra-altenkirch:dep-types-for-distr-arrays,swierstra:more-dependent-types}. Their notation for distributed arrays was inspired by X10 and the main focus is on expressing locality aware algorithms.
+Swierstra and Altenkirch investigated the use of dependent types for
+\emph{distributed} array
+programming~\cite{swierstra-altenkirch:dep-types-for-distr-arrays,swierstra:more-dependent-types}.
+Their notation for distributed arrays is inspired by the X10 language
+\cite{Saraswat2009}. They focus on expressing locality awareness.
 
 Dependent ML is an ML dialect with a restricted form of dependent types, which, among other applications, may be used to statically check array bounds~\cite{xi:dml-jfp}. However, only simple indexing and array updating are considered and not aggregate array operations, such as those provided by Accelerate.
 
@@ -335,8 +346,11 @@ dotp{E} xs ys =
   in  fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
 \end{code}
 Unlike the Accelerate code, this function is polymorphic with respect
-to the array element type, provided it is numeric.\footnote{In Agda, arguments in double curly braces are \emph{instance arguments}~\cite{DevriesePiessens2011}. We use them much like type class constraints are used in Haskell.} It furthermore
-takes the length $n$ as an implicit parameter thus ensuring that the two input
+to the array element type, provided it is numeric.\footnote{In Agda,
+  arguments in double curly braces are \emph{instance
+    arguments}~\cite{DevriesePiessens2011} that are aggressively
+  inferred. We use them like type class constraints in Haskell.}
+The length parameter $n$ ensures that the two input
 vectors have the same size. The \texttt{PreVector} type of the
 arguments corresponds to the plain \texttt{Vector} type in Accelerate,
 whereas the result type \texttt{Scalar E} corresponds to \texttt{Acc
@@ -382,8 +396,8 @@ denotes an AST of an expression of type \texttt{E}.
 
 Accelerate's API features expressive type constraints that describe
 the shape of the array arguments and results. These constraints ensure
-that no shape mismatches occur (e.g., a one-dimensional array cannot be
-considered two-dimensional), but they do not ensure at compile
+that no shape mismatches occur (e.g., a 1D array cannot be
+considered 2D), but they do not ensure at compile
 time that the sizes of the dimensions match up. Such a mismatch
 results in a run-time error.
 
@@ -438,9 +452,14 @@ The latter type is more restrictive than the Accelerate implementation
 of \texttt{zipWith}. Instead of checking the sizes of the input
 arrays, it truncates them to the respective minima. We also developed
 an Agda type that directly corresponds to this implementation. It
-requires a binary function that computes the minimum of two shapes,
+requires a binary function \texttt{isect} that computes the minimum of
+two shapes of the same rank,
 which we leave as an exercise to the reader.
-
+\begin{alltt}
+zipWith' : \{A B C\} \{shA shB\} \{p : rank shA \(\equiv\) rank shB\}
+         -> (A -> B -> C)
+         -> Array shA A -> Array shB B -> Array (isect shA shB p) C
+\end{alltt}
 \subsection{Associativity of Operations}
 \label{sec:assoc-oper}
 
@@ -600,16 +619,14 @@ FVector n E = Vector n (Pair Bool E)
 
 In this encoding, filtering is quite simple because the length of
 the \texttt{FVector} does not change. Furthermore, filtering could be
-extended to multi-dimensional arrays, although it is not clear if an
-array that contains non-existing elements or holes is a sensible notion.
+extended to multi-dimensional arrays, although the result might
+require careful interpretation.
 \begin{verbatim}
 filterF : forall {n : Nat}{E : Elt}
         -> (Exp E -> Exp Bool) -> FVector n E -> FVector n E
-filterF {n}{E} pred vec =
-  map g vec
-  where
-  g : Exp (Pair Bool E) -> Exp (Pair Bool E)
-  g bx = pair ((fst bx) && p (snd bx)) x
+filterF {n}{E} pred vec = map g vec
+  where g : Exp (Pair Bool E) -> Exp (Pair Bool E)
+        g bx = pair ((fst bx) && p (snd bx)) x
 \end{verbatim}
 The mapping operation that applies a function to each element of an
 array becomes more complicated because it either has to 
@@ -618,15 +635,13 @@ vector or apply the function to absent elements, too. This makes \texttt{filter}
 \begin{verbatim}
 mapF : forall {n : Nat}{E F : Elt}
      -> Exp F -> (Exp E -> Exp F) -> FVector n E -> FVector n F
-mapF {n}{E}{F} defaultF f vec =
-  map g vec
-  where
-  g : Exp (Pair Bool E) -> Exp (Pair Bool F)
-  g bx = if (fst bx) then (pair (fst bx) (f (snd bx)))
-                     else (pair (fst bx) defaultF)
+mapF {n}{E}{F} defaultF f vec = map g vec
+  where g : Exp (Pair Bool E) -> Exp (Pair Bool F)
+        g bx = if (fst bx) then (pair (fst bx) (f (snd bx)))
+                           else (pair (fst bx) defaultF)
 \end{verbatim}
-On the positive side, some operations can get rid of the absent
-elements. In particular, a fold operation which reduces a filtered
+Some operations can get rid of absent
+elements. A fold operation which reduces a filtered
 vector with a monoid returns a single value. In Accelerate, such a value has type
 \texttt{Scalar}, which is a synonym for an array of dimension $0$.
 \begin{verbatim}
@@ -636,9 +651,10 @@ foldF : forall {n : Nat}{E : Elt}
 foldF f e vec =
   fold f e (map (\ bx -> if (fst bx) then (snd bx) else e) vec)
 \end{verbatim}
-Other operations like \texttt{fold1} and the scan operations present
-in Accelerate can also be lifted to this representation, but they
-retain a notion of absent elements and do not allow to revert to a
+Operations like \texttt{fold1} and the scan operations
+extend to this representation, but they
+% retain a notion of absent elements and
+cannot revert to a
 non-filtered representation. 
 
 In the end, such a representation may not even lead to reduced efficiency on a GPU. As long
@@ -815,7 +831,7 @@ separately.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We have build an experimental Agda frontend for the Accelerate
+We have built an experimental Agda frontend for the Accelerate
 language. The goal of this experiment was to explore potential uses of
 dependently-typed programming for data-parallel languages. 
 
