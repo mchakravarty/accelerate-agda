@@ -244,28 +244,24 @@ type Scalar e = Array DIM0 e
 type Vector e = Array DIM1 e
 \end{hcode}
 
-The general type for \verb+use+ is
+In the general type for \verb+use+, the class \verb+Elt+ characterizes all types that may be held in Accelerate arrays. These are currently primitive types and tuples.
 %
 \begin{hcode}
 use :: Elt e => Array sh e -> Acc (Array sh e)
 \end{hcode}
 %
-where the class \verb+Elt+ characterizes all types that may be held in Accelerate arrays. These are currently primitive types and tuples.
-
 Common dimensions, such as \verb+DIM0+, \verb+DIM1+, and so on, are
 predefined, but to enable shape polymorphic computations, along the
 lines pioneered in the Haskell array library
 Repa~\cite{keller-etal:repa}, shapes are inductively defined using
-type-level snoc lists built from the data types \texttt{Z} and \texttt{:.}:
+type-level snoc lists built from the data types \texttt{Z} and
+\texttt{:.}. The use of snoc lists simplifies the type signatures of
+fold operations that reduce or abstract over the least significant dimensions.
 %
 \begin{hcode}
 data Z       = Z
 data sh :. i = sh :. i
-\end{hcode}
-%
-Hence, the definitions of the dimensions:
-%
-\begin{hcode}
+-- Types for often used dimensions
 type DIM0 = Z
 type DIM1 = DIM0 :. Int
 -- and so on
@@ -336,7 +332,10 @@ The embedding declares further subsets all in the same style.
 \label{sec:array-types}
 
 To demonstrate the Agda embedding in action, we translate the
-dot product example from Section~\ref{sec:accelerate} to Agda.
+dot product example from Section~\ref{sec:accelerate} to Agda.\footnote{In Agda,
+  arguments in double curly braces are \emph{instance
+    arguments}~\cite{DevriesePiessens2011} that are aggressively
+  inferred. We use them like type class constraints in Haskell.}
 \begin{code}
 dotp : forall {E : Elt} {{p : Numeric E}} {n : Nat}
      -> PreVector n E -> PreVector n E -> Scalar E
@@ -346,10 +345,7 @@ dotp{E} xs ys =
   in  fold _+_ ("0" ::: E) (zipWith _*_ xs' ys')
 \end{code}
 Unlike the Accelerate code, this function is polymorphic with respect
-to the array element type, provided it is numeric.\footnote{In Agda,
-  arguments in double curly braces are \emph{instance
-    arguments}~\cite{DevriesePiessens2011} that are aggressively
-  inferred. We use them like type class constraints in Haskell.}
+to the array element type, provided it is numeric.
 The length parameter $n$ ensures that the two input
 vectors have the same size. The \texttt{PreVector} type of the
 arguments corresponds to the plain \texttt{Vector} type in Accelerate,
@@ -494,8 +490,8 @@ AST-encoded function is associative and the meaning of another
 AST-encoded constant is its unit element. Given that Accelerate
 encodes AST construction using higher-order abstract syntax, such a
 formalization is not straightforward. Moreover, even given expressions
-with a fixed meaning, there is no general shape for associative
-functions, so that proofs can only be done for special cases. 
+with a fixed meaning, associativity has to be proved on a case by case
+basis.
 
 In any case, providing such information would be done by including an
 additional argument that holds a suitable proof object, as in
@@ -515,10 +511,10 @@ floating point numbers is associative
 \cite{DBLP:journals/csur/Goldberg91}. However, for advanced
 optimizations, the exploitation of algebraic laws is a necessity and
 the involved degradation of precision or change of result is accepted
-or account for in the error estimates. Moreover, there are
+or accounted for in the error estimates. Moreover, there are
 other operations, like min or max, that are commonly used with
 \texttt{fold}-like operations, which are truly associative. Last, but
-not least, the associativity declarations serve as an important
+not least, the associativity declarations serve as important
 documentation that passing an inherently non-associative function will
 produce unpredictable, implementation-dependent results.
 
@@ -537,7 +533,7 @@ using \texttt{fromRational}. Accelerate provides instances of these
 type classes that define \texttt{fromInteger} and
 \texttt{fromRational} to produce suitable AST fragments.
 
-Because of Agda's limited support for numeric data types,
+Because of Agda's lack of support for overloaded numeric literals,
 we embed numeric literals for integers and floating point numbers
 using a string with an explicit type annotation that determines the
 parsing of the string. Here are some example embeddings:
@@ -556,8 +552,8 @@ s ::: E = Ex (constantFromString (EltDict E) (ReadDict E) s)
 The arguments \texttt{s} and \texttt{E} are explicit, but the
 remaining ones are inferred by Agda.
 As mentioned before, the argument \texttt{nu} is an instance argument; it is automatically
-filled-in with a suitably typed value that is currently in scope
-\cite{DevriesePiessens2011}. Here, the predicate 
+filled-in with a suitably typed value in scope
+\cite{DevriesePiessens2011}. As before, the predicate 
 \texttt{Numeric} plays the role of a type class that characterizes
 the numeric types.
 
@@ -567,6 +563,9 @@ function \texttt{constantFromString} is imported from Accelerate.
 It is an overloaded function that requires two type dictionaries,
 which are computed from \texttt{E} using the functions \texttt{EltDict}
 and \texttt{ReadDict}. 
+
+This setup results in a flexible way of handling literals. It has
+worked well in our examples.
 
 \section{Limitations}
 \label{sec:limitations}
